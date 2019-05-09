@@ -1,0 +1,11 @@
+gst-launch-1.0 -v \
+souphttpsrc location=http://129.228.120.86/offair/vh1/20190508/playlist.m3u8 ! \
+hlsdemux ! \
+identity silent=false name=identity_hls ! \
+tsparse name=tp set-timestamps=true \
+tp.src !  video/mpegts ! \
+identity silent=false name=identity_tp ! \
+rtpmp2tpay ! \
+identity silent=false name=identity_pay ! \
+udpsink host=239.211.8.11 port=1234 auto-multicast=true max-bitrate=11000000
+
