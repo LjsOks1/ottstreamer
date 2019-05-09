@@ -1,0 +1,36 @@
+diff --git a/gst/mpegtsdemux/mpegtspacketizer.c b/gst/mpegtsdemux/mpegtspacketizer.c
+index cc46ebb25..1d9f836c9 100644
+--- a/gst/mpegtsdemux/mpegtspacketizer.c
++++ b/gst/mpegtsdemux/mpegtspacketizer.c
+@@ -469,8 +469,9 @@ mpegts_packetizer_parse_packet (MpegTSPacketizer2 * packetizer,
+ 
+   packet->scram_afc_cc = tmp = *data++;
+   /* transport_scrambling_control 2 */
++  /* FIXME: pass-through scrambled packets.
+   if (G_UNLIKELY (tmp & 0xc0))
+-    return PACKET_BAD;
++    return PACKET_BAD;   */
+ 
+   packet->data = data;
+ 
+diff --git a/gst/mpegtsdemux/mpegtsparse.c b/gst/mpegtsdemux/mpegtsparse.c
+index 8e227baad..75c0e9e15 100644
+--- a/gst/mpegtsdemux/mpegtsparse.c
++++ b/gst/mpegtsdemux/mpegtsparse.c
+@@ -169,7 +169,7 @@ mpegts_parse_class_init (MpegTSParse2Class * klass)
+   gst_element_class_add_static_pad_template (element_class, &program_template);
+ 
+   gst_element_class_set_static_metadata (element_class,
+-      "MPEG transport stream parser", "Codec/Parser",
++      "MPEG transport stream parser - with duration", "Codec/Parser",
+       "Parses MPEG2 transport streams",
+       "Alessandro Decina <alessandro@nnva.org>, "
+       "Zaheer Abbas Merali <zaheerabbas at merali dot org>");
+@@ -839,6 +839,7 @@ drain_pending_buffers (MpegTSParse2 * parse, gboolean drain_all)
+ 
+     GST_BUFFER_PTS (buffer) = out_ts + parse->ts_offset;
+     GST_BUFFER_DTS (buffer) = out_ts + parse->ts_offset;
++    GST_BUFFER_DURATION (buffer) = pcr_diff;
+     if (ret == GST_FLOW_OK) {
+       ret = gst_pad_push (parse->srcpad, buffer);
+       ret = gst_flow_combiner_update_flow (parse->flowcombiner, ret);
