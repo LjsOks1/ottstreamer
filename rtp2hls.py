@@ -4,7 +4,9 @@ from __future__ import print_function
 
 import gi
 gi.require_version('Gst', '1.0')
-from gi.repository import GObject, Gst
+gi.require_version('GstMpegts' , '1.0')
+
+from gi.repository import GObject, Gst, GstMpegts
 
 import datetime
 
@@ -70,27 +72,21 @@ class HLSRecorder(object):
         self.urlroot=urlroot
         self.date=datetime.datetime.today().strftime("%Y%m%d")
  
-        #Setup recording pipeline: udpsrc ! rtpmp2tdepay ! tsparse ! splitmuxsink
+        #Setup recording pipeline: udpsrc ! rtpmp2tdepay ! tsparse ! multifilesink
         self.pipeline=Gst.Pipeline.new("HLSrecorder")
         self.udpsrc=Gst.ElementFactory.make("udpsrc","udpsrc")
-        self.q=Gst.ElementFactory.make("queue","queue")
         self.depay=Gst.ElementFactory.make("rtpmp2tdepay","rtpmp2tdepay")
         self.tsparse=Gst.ElementFactory.make("tsparse","tsparse")
-        self.q2=Gst.ElementFactory.make("queue","queue22")
         self.multifilesink=Gst.ElementFactory.make("multifilesink","multifilesink")
         #Add elements to the pipeline...
         self.pipeline.add(self.udpsrc)
-        self.pipeline.add(self.q)
         self.pipeline.add(self.depay)
         self.pipeline.add(self.tsparse)        
-        self.pipeline.add(self.q2)
         self.pipeline.add(self.multifilesink)
         #Link elements....
         self.udpsrc.link(self.depay)
-        self.depay.link(self.q)
-        self.q.link(self.tsparse)
-        self.tsparse.get_request_pad("program_30638").link(self.q2.get_static_pad("sink"))
-        self.q2.link(self.multifilesink)
+        self.depay.link(self.tsparse)
+        self.tsparse.link(self.multifilesink)
         #Set properties....
         self.udpsrc.set_property("uri",self.stream)
         self.udpsrc.set_property("caps",Gst.Caps.from_string("application/x-rtp"))
@@ -113,25 +109,30 @@ class HLSRecorder(object):
         self.playlist=Playlist(os.path.join(self.docroot,self.channel,self.date,"playlist.m3u8"),5)
  
     def buffer_received(self,pad,info):
-        buffer=info.get_buffer()
+        if info.type==Gst.PadProbeType.BUFFER:
+            buffer=info.get_buffer()
 #        print("Buffer received with PCR:%s and Duration:%s Offset:%i Offset_End:%i Size:%i"  % 
 #            (convert_ns(buffer.pts),convert_ns(buffer.duration),buffer.offset,buffer.offset_end,buffer.offset_end-buffer.offset))
         return Gst.PadProbeReturn.OK
 
     def on_file_change(self,bus,msg):
-        structure=msg.get_structure()
-        logger.debug("Message received from:%s",msg.src.get_name())
-        logger.debug("Structure: %s",structure.to_string())
-        #GST_LOG("structure is %" GST_PTR_FORMAT,structure)
-        if msg.src.get_name()=="multifilesink":         
-            if structure.get_name()=="GstMultiFileSink":
-                filename=os.path.basename(structure.get_string("filename"))   
-                (result,index)=structure.get_int("index")
-                (result,running_time)=structure.get_clock_time("duration")
-                logger.debug(filename+" received. Running-time:"+str(running_time))
-                self.playlist.append_segment({"segment_name":self.urlroot+'/'+self.channel+'/'+self.date+'/'+filename,
-                                              "seq_num":index})
-                self.playlist.renderPlaylist()
+        if msg.type==Gst.MessageType.ELEMENT:
+            structure=msg.get_structure()
+            logger.debug("Message received from:%s",msg.src.get_name())
+            #logger.debug("Structure: %s",structure.to_string())
+            #GST_LOG("structure is %" GST_PTR_FORMAT,structure)
+            if msg.src.get_name()=="multifilesink":         
+                if structure.get_name()=="GstMultiFileSink":
+                    filename=os.path.basename(structure.get_string("filename"))   
+                    (result,index)=structure.get_int("index")
+                    (result,running_time)=structure.get_clock_time("duration")
+                    logger.debug(filename+" received. Running-time:"+str(convert_ns(running_time)))
+                    self.playlist.append_segment({"segment_name":self.urlroot+'/'+self.channel+'/'+self.date+'/'+filename,
+                                                  "seq_num":index})
+                    self.playlist.renderPlaylist()
+            if msg.src.get_name()=="tsparse":
+                section=GstMpegts.message_parse_mpegts_section(msg)
+                logger.debug("Section received:%s",section.section_type)
 
     def record(self):     
         result=self.pipeline.set_state(Gst.State.PLAYING)
