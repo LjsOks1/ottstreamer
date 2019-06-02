@@ -1,0 +1,53 @@
+diff --git a/gst/rtp/gstrtpmp2tpay.c b/gst/rtp/gstrtpmp2tpay.c
+index 12f948ed8..371c84514 100644
+--- a/gst/rtp/gstrtpmp2tpay.c
++++ b/gst/rtp/gstrtpmp2tpay.c
+@@ -123,11 +123,12 @@ gst_rtp_mp2t_pay_setcaps (GstRTPBasePayload * payload, GstCaps * caps)
+ static GstFlowReturn
+ gst_rtp_mp2t_pay_flush (GstRTPMP2TPay * rtpmp2tpay)
+ {
+-  guint avail, mtu;
++  guint avail, mtu, size;
+   GstFlowReturn ret = GST_FLOW_OK;
+   GstBuffer *outbuf;
+ 
+   avail = gst_adapter_available (rtpmp2tpay->adapter);
++  size=avail;
+ 
+   mtu = GST_RTP_BASE_PAYLOAD_MTU (rtpmp2tpay);
+ 
+@@ -148,9 +149,10 @@ gst_rtp_mp2t_pay_flush (GstRTPMP2TPay * rtpmp2tpay)
+     payload_len -= payload_len % 188;
+ 
+     /* need whole packets */
+-    if (!payload_len)
++    if (!payload_len) 
+       break;
+ 
++
+     /* create buffer to hold the payload */
+     outbuf = gst_rtp_buffer_new_allocate (0, 0, 0);
+ 
+@@ -158,11 +160,19 @@ gst_rtp_mp2t_pay_flush (GstRTPMP2TPay * rtpmp2tpay)
+     paybuf = gst_adapter_take_buffer_fast (rtpmp2tpay->adapter, payload_len);
+     gst_rtp_copy_meta (GST_ELEMENT_CAST (rtpmp2tpay), outbuf, paybuf, 0);
+     outbuf = gst_buffer_append (outbuf, paybuf);
+-    avail -= payload_len;
++    //avail -= payload_len;
++    if(GST_CLOCK_TIME_IS_VALID(rtpmp2tpay->duration)) {
++      GST_BUFFER_PTS (outbuf) = rtpmp2tpay->first_ts + (size-avail)*(rtpmp2tpay->duration) / size ;
++      GST_BUFFER_DURATION (outbuf) = rtpmp2tpay->duration*payload_len/size;
++    } else {
++      GST_WARNING_OBJECT(rtpmp2tpay,"Buffer received without duration. PCR:%" GST_TIME_FORMAT , 
++         GST_TIME_ARGS(rtpmp2tpay->first_ts));
++      GST_BUFFER_PTS (outbuf) = rtpmp2tpay->first_ts;
++      GST_BUFFER_DURATION (outbuf) = rtpmp2tpay->duration; 
++    }
+ 
+-    GST_BUFFER_PTS (outbuf) = rtpmp2tpay->first_ts;
+-    GST_BUFFER_DURATION (outbuf) = rtpmp2tpay->duration;
+ 
++    avail -= payload_len;
+     GST_DEBUG_OBJECT (rtpmp2tpay, "pushing buffer of size %u",
+         (guint) gst_buffer_get_size (outbuf));
+ 

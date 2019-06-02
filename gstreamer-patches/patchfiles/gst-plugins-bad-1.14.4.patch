@@ -1,0 +1,384 @@
+diff --git a/gst-libs/gst/mpegts/Makefile.am b/gst-libs/gst/mpegts/Makefile.am
+index f264e33a7..9765fdd27 100644
+--- a/gst-libs/gst/mpegts/Makefile.am
++++ b/gst-libs/gst/mpegts/Makefile.am
+@@ -5,7 +5,8 @@ libgstmpegts_@GST_API_VERSION@_la_SOURCES = \
+ 	gstmpegtsdescriptor.c \
+ 	gst-dvb-descriptor.c \
+ 	gst-dvb-section.c \
+-	gst-atsc-section.c
++	gst-atsc-section.c \
++        gst-scte-section.c
+ 
+ libgstmpegts_@GST_API_VERSION@includedir = \
+ 	$(includedir)/gstreamer-@GST_API_VERSION@/gst/mpegts
+diff --git a/gst-libs/gst/mpegts/gst-scte-section.c b/gst-libs/gst/mpegts/gst-scte-section.c
+new file mode 100644
+index 000000000..ad55a46ff
+--- /dev/null
++++ b/gst-libs/gst/mpegts/gst-scte-section.c
+@@ -0,0 +1,110 @@
++/*
++  * Copyright (C) 2019 Lajos Okos
++  *
++  * Authors:
++  *   Lajos Okos <lajos.okos@gmail.com>
++  *
++  * This library is free software; you can redistribute it and/or
++  * modify it under the terms of the GNU Library General Public
++  * License as published by the Free Software Foundation; either
++  * version 2 of the License, or (at your option) any later version.
++  *
++  * This library is distributed in the hope that it will be useful,
++  * but WITHOUT ANY WARRANTY; without even the implied warranty of
++  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
++  * Library General Public License for more details.
++  *
++  * You should have received a copy of the GNU Library General Public
++  * License along with this library; if not, write to the
++  * Free Software Foundation, Inc., 51 Franklin St, Fifth Floor,
++  * Boston, MA 02110-1301, USA.
++  */
++ 
++ #include <string.h>
++ #include <stdlib.h>
++ 
++ #include "mpegts.h"
++ #include "gstmpegts-private.h"
++
++static void
++_gst_mpegts_scte_splice_command_free (GstMpegtsScteSpliceInsert *spinsert)
++ {
++   //g_ptr_array_unref (spinfo->???);
++   //g_ptr_array_unref (spinfo->descriptors);
++   g_slice_free (GstMpegtsScteSpliceInsert, spinsert);
++ }
++
++static gpointer
++ _parse_scte_splice_info (GstMpegtsSection * section)
++ {
++   GstMpegtsScteSpliceInfo *spinfo = NULL;
++   guint8 *data, *end;
++    
++   spinfo = g_slice_new0 (GstMpegtsScteSpliceInfo);
++ 
++   data = section->data;
++   end = data + section->section_length;
++   spinfo->table_id=*data++;
++   spinfo->section_syntax_indicator=*data>>7;
++   spinfo->private_indicator=(*data>>6)&0x01;
++   spinfo->section_length=(*data&0x0f*256) + *(data+1);
++   data+=2;
++   spinfo->protocol_version=*data++;
++   spinfo->encrypted_packet=*data>>7;
++   spinfo->encryption_algorith=(*data>>1)&0x3f;
++   spinfo->pts_adjustment=(*data&0x01)<<32|*(data+1)<<24|*(data+2)<<16|*(data+3)<<8|*(data+4);
++   data+=5;
++   spinfo->cw_index=*data++;
++   spinfo->tier=*data<<4|(*(data+1)&0xf0)>>4;
++   spinfo->splice_command_length=(*(data+1)&0x0f)<<4|*(data+2);
++   data+=3;
++   spinfo->splice_command_type=*data++;
++   switch (spinfo->splice_command_type) {
++      case 0x05: {  //Splice Insert
++        GstMpegtsScteSpliceInsert *spinsert = &spinfo->splice_insert;
++        spinsert->splice_event_id=*data<<24|*(data+1)<<16|*(data+2)<<8|*(data+3);
++        data+=4;
++        spinsert->splice_event_cancel_indicator=*data++>>7;
++        spinsert->out_of_network_indicator=*data>>7;
++        spinsert->program_splice_flag=(*data>>6)&0x01;
++        spinsert->duration_flag=(*data>>5)&0x01;
++        spinsert->splice_immediate_flag=(*data++>>4)&0x01;
++        spinsert->time_specified_flag=*data>>7;
++        spinsert->pts_time=(*data&0x01)<<32|*(data+1)<<24|*(data+2)<<16|*(data+3)<<8|*(data+4);
++        data+=5;
++        spinsert->unique_program_id=*data<<8|*(data+1);
++        data+=2;
++        spinsert->avail_num=*data++;
++        spinsert->avails_expected=*data++;
++     }
++      break;
++      case 0x00:   //Splice Null
++      default: {}    //Unkown command
++        //spinfo->splice_command=NULL;
++   }
++
++   return (gpointer) spinfo;
++}
++
++ static void
++ _gst_mpegts_scte_splice_info_free (GstMpegtsScteSpliceInfo * spinfo)
++ {
++   //g_ptr_array_unref (spinfo->???);
++   //g_ptr_array_unref (spinfo->descriptors);
++   g_slice_free (GstMpegtsScteSpliceInfo, spinfo);
++ }
++
++const GstMpegtsScteSpliceInfo *
++ gst_mpegts_section_get_scte_splice_info (GstMpegtsSection * section)
++ {
++   g_return_val_if_fail (section->section_type == GST_MPEGTS_SECTION_SCTE_SPLICING,
++       NULL);
++   g_return_val_if_fail (section->cached_parsed || section->data, NULL);
++ 
++   if (!section->cached_parsed)
++     section->cached_parsed =
++         __common_section_checks (section, 3, _parse_scte_splice_info,
++         (GDestroyNotify) _gst_mpegts_scte_splice_info_free);
++ 
++   return (const GstMpegtsScteSpliceInfo *) section->cached_parsed;
++ }
+diff --git a/gst-libs/gst/mpegts/gst-scte-section.h b/gst-libs/gst/mpegts/gst-scte-section.h
+index babab342d..cfd151ecc 100644
+--- a/gst-libs/gst/mpegts/gst-scte-section.h
++++ b/gst-libs/gst/mpegts/gst-scte-section.h
+@@ -52,6 +52,7 @@ typedef enum {
+   GST_MPEGTS_STREAM_TYPE_SCTE_SUBTITLING = 0x82,   /* Subtitling data */
+   GST_MPEGTS_STREAM_TYPE_SCTE_ISOCH_DATA = 0x83,   /* Isochronous data */
+   /* 0x84 - 0x94 : defined in other specs */
++  GST_MPEGTS_STREAM_TYPE_SCTE_SPLICING   = 0x86,   /* Lajos: SCTE35 stream type */
+   GST_MPEGTS_STREAM_TYPE_SCTE_DST_NRT    = 0x95,   /* DST / NRT data */
+   /* 0x96 - 0xaf : defined in other specs */
+   GST_MPEGTS_STREAM_TYPE_SCTE_DSMCC_DCB  = 0xb0,   /* Data Carousel Type B */
+@@ -97,6 +98,48 @@ typedef enum {
+ 
+ } GstMpegtsSectionSCTETableID;
+ 
++typedef struct _GstMpegtsScteSpliceInsert GstMpegtsScteSpliceInsert;
++
++struct _GstMpegtsScteSpliceInsert
++{
++  guint32 splice_event_id;
++  gboolean splice_event_cancel_indicator;
++  gboolean out_of_network_indicator;
++  gboolean program_splice_flag;
++  gboolean duration_flag;
++  gboolean splice_immediate_flag;
++  gboolean time_specified_flag;
++  guint64 pts_time;
++  guint16 unique_program_id;
++  guint8 avail_num;
++  guint8 avails_expected;
++} ;
++
++typedef struct _GstMpegtsScteSpliceInfo GstMpegtsScteSpliceInfo;
++
++struct _GstMpegtsScteSpliceInfo
++{
++  guint8 table_id;
++  gboolean section_syntax_indicator;
++  gboolean private_indicator;
++  guint16 section_length;
++  guint8 protocol_version;
++  gboolean encrypted_packet;
++  guint8 encryption_algorith;
++  guint64 pts_adjustment;
++  guint8 cw_index;
++  guint16 tier;
++  guint16 splice_command_length;
++  guint8 splice_command_type;
++  GstMpegtsScteSpliceInsert splice_insert;
++  GPtrArray *descriptors;
++} ;
++
++
++GST_MPEGTS_API
++const GstMpegtsScteSpliceInfo *
++gst_mpegts_section_get_scte_splice_info (GstMpegtsSection *section);
++ 
+ G_END_DECLS
+ 
+ #endif  /* GST_SCTE_SECTION_H */
+diff --git a/gst-libs/gst/mpegts/gstmpegtssection.c b/gst-libs/gst/mpegts/gstmpegtssection.c
+index 01fc2a23d..a02385a22 100644
+--- a/gst-libs/gst/mpegts/gstmpegtssection.c
++++ b/gst-libs/gst/mpegts/gstmpegtssection.c
+@@ -76,6 +76,7 @@ static GQuark QUARK_EIT;
+ static GQuark QUARK_TDT;
+ static GQuark QUARK_TOT;
+ static GQuark QUARK_SECTION;
++static GQuark QUARK_SIT;
+ 
+ static GType _gst_mpegts_section_type = 0;
+ #define MPEG_TYPE_TS_SECTION (_gst_mpegts_section_type)
+@@ -294,6 +295,9 @@ _mpegts_section_get_structure (GstMpegtsSection * section)
+     case GST_MPEGTS_SECTION_TOT:
+       quark = QUARK_TOT;
+       break;
++    case GST_MPEGTS_SECTION_SCTE_SPLICING:
++      quark = QUARK_SIT;
++      break;
+     default:
+       GST_DEBUG ("Creating structure for unknown GstMpegtsSection");
+       quark = QUARK_SECTION;
+@@ -1010,7 +1014,7 @@ gst_mpegts_initialize (void)
+   QUARK_TDT = g_quark_from_string ("tdt");
+   QUARK_TOT = g_quark_from_string ("tot");
+   QUARK_SECTION = g_quark_from_string ("section");
+-
++  QUARK_SIT = g_quark_from_string ("sit");
+   __initialize_descriptors ();
+ }
+ 
+@@ -1075,6 +1079,9 @@ _identify_section (guint16 pid, guint8 table_id)
+       if (pid == 0x1ffb)
+         return GST_MPEGTS_SECTION_ATSC_STT;
+       break;
++    case GST_MTS_TABLE_ID_SCTE_SPLICE:  
++        return GST_MPEGTS_SECTION_SCTE_SPLICING;
++      break;
+     default:
+       /* Handle ranges */
+       if (table_id >= GST_MTS_TABLE_ID_EVENT_INFORMATION_ACTUAL_TS_PRESENT &&
+diff --git a/gst-libs/gst/mpegts/gstmpegtssection.h b/gst-libs/gst/mpegts/gstmpegtssection.h
+index 3b8846c8a..3ba29dce4 100644
+--- a/gst-libs/gst/mpegts/gstmpegtssection.h
++++ b/gst-libs/gst/mpegts/gstmpegtssection.h
+@@ -78,7 +78,8 @@ typedef enum {
+   GST_MPEGTS_SECTION_ATSC_MGT,
+   GST_MPEGTS_SECTION_ATSC_ETT,
+   GST_MPEGTS_SECTION_ATSC_EIT,
+-  GST_MPEGTS_SECTION_ATSC_STT
++  GST_MPEGTS_SECTION_ATSC_STT,
++  GST_MPEGTS_SECTION_SCTE_SPLICING
+ } GstMpegtsSectionType;
+ 
+ /**
+diff --git a/gst/mpegtsdemux/mpegtsbase.c b/gst/mpegtsdemux/mpegtsbase.c
+index 5180c2ee5..c5b5041b8 100644
+--- a/gst/mpegtsdemux/mpegtsbase.c
++++ b/gst/mpegtsdemux/mpegtsbase.c
+@@ -89,6 +89,8 @@ static gboolean mpegts_base_get_tags_from_eit (MpegTSBase * base,
+     GstMpegtsSection * section);
+ static gboolean mpegts_base_parse_atsc_mgt (MpegTSBase * base,
+     GstMpegtsSection * section);
++static gboolean mpegts_base_parse_scte_splice (MpegTSBase *base,
++    GstMpegtsSection *section);
+ static gboolean remove_each_program (gpointer key, MpegTSBaseProgram * program,
+     MpegTSBase * base);
+ 
+@@ -702,6 +704,7 @@ _stream_is_private_section (GstMpegtsPMTStream * stream)
+     case GST_MPEGTS_STREAM_TYPE_DSMCC_D:
+     case GST_MPEGTS_STREAM_TYPE_SL_FLEXMUX_SECTIONS:
+     case GST_MPEGTS_STREAM_TYPE_METADATA_SECTIONS:
++    case GST_MPEGTS_STREAM_TYPE_SCTE_SPLICING:
+       /* known PSI streams */
+       return TRUE;
+     default:
+@@ -1147,8 +1150,8 @@ mpegts_base_handle_psi (MpegTSBase * base, GstMpegtsSection * section)
+ {
+   gboolean post_message = TRUE;
+ 
+-  GST_DEBUG ("Handling PSI (pid: 0x%04x , table_id: 0x%02x)",
+-      section->pid, section->table_id);
++  GST_DEBUG ("Handling PSI (pid: 0x%04x , table_id: 0x%02x, section_type:%02x)",
++      section->pid, section->table_id,section->section_type);
+ 
+   switch (section->section_type) {
+     case GST_MPEGTS_SECTION_PAT:
+@@ -1170,6 +1173,11 @@ mpegts_base_handle_psi (MpegTSBase * base, GstMpegtsSection * section)
+     case GST_MPEGTS_SECTION_ATSC_MGT:
+       post_message = mpegts_base_parse_atsc_mgt (base, section);
+       break;
++    case GST_MPEGTS_SECTION_SCTE_SPLICING:
++      GST_DEBUG("Found splicing table.");
++      GST_MEMDUMP ("Full section data", section->data,section->section_length);
++      post_message = mpegts_base_parse_scte_splice(base,section);
++      break;  
+     default:
+       break;
+   }
+@@ -1205,6 +1213,18 @@ mpegts_base_parse_atsc_mgt (MpegTSBase * base, GstMpegtsSection * section)
+   return TRUE;
+ }
+ 
++static gboolean
++mpegts_base_parse_scte_splice(MpegTSBase *base, GstMpegtsSection *section)
++{
++  const GstMpegtsScteSpliceInfo *sinfo;
++
++  sinfo=gst_mpegts_section_get_scte_splice_info(section);
++  if(G_UNLIKELY(sinfo==NULL))
++    return FALSE;
++
++  return TRUE;
++}
++
+ static gboolean
+ mpegts_base_get_tags_from_eit (MpegTSBase * base, GstMpegtsSection * section)
+ {
+diff --git a/gst/mpegtsdemux/mpegtspacketizer.c b/gst/mpegtsdemux/mpegtspacketizer.c
+index cc46ebb25..01732e20f 100644
+--- a/gst/mpegtsdemux/mpegtspacketizer.c
++++ b/gst/mpegtsdemux/mpegtspacketizer.c
+@@ -469,8 +469,9 @@ mpegts_packetizer_parse_packet (MpegTSPacketizer2 * packetizer,
+ 
+   packet->scram_afc_cc = tmp = *data++;
+   /* transport_scrambling_control 2 */
++  /* FIXME: pass-through scrambled packets.
+   if (G_UNLIKELY (tmp & 0xc0))
+-    return PACKET_BAD;
++    return PACKET_BAD;   */
+ 
+   packet->data = data;
+ 
+@@ -1086,8 +1087,8 @@ section_start:
+   /* Fast path for short packets */
+   if (!long_packet) {
+     /* We can create the section now (function will check for size) */
+-    GST_DEBUG ("Short packet");
+-    section_length = (GST_READ_UINT16_BE (data + 1) & 0xfff) + 3;
++   section_length = (GST_READ_UINT16_BE (data + 1) & 0xfff) + 3;
++   GST_DEBUG ("Short packet with length: %i bytes",section_length);
+     /* Only do fast-path if we have enough byte */
+     if (section_length < packet->data_end - data) {
+       if ((section =
+diff --git a/gst/mpegtsdemux/mpegtsparse.c b/gst/mpegtsdemux/mpegtsparse.c
+index 8e227baad..f88dffc62 100644
+--- a/gst/mpegtsdemux/mpegtsparse.c
++++ b/gst/mpegtsdemux/mpegtsparse.c
+@@ -169,7 +169,7 @@ mpegts_parse_class_init (MpegTSParse2Class * klass)
+   gst_element_class_add_static_pad_template (element_class, &program_template);
+ 
+   gst_element_class_set_static_metadata (element_class,
+-      "MPEG transport stream parser", "Codec/Parser",
++      "MPEG transport stream parser - with duration", "Codec/Parser",
+       "Parses MPEG2 transport streams",
+       "Alessandro Decina <alessandro@nnva.org>, "
+       "Zaheer Abbas Merali <zaheerabbas at merali dot org>");
+@@ -744,9 +744,9 @@ drain_pending_buffers (MpegTSParse2 * parse, gboolean drain_all)
+ {
+   GstFlowReturn ret = GST_FLOW_OK;
+   GstClockTime start_ts;
+-  GstClockTime pcr = GST_CLOCK_TIME_NONE;
++  GstClockTime pcr = GST_CLOCK_TIME_NONE, dur;
+   GstClockTime pcr_diff = 0;
+-  gsize pcr_bytes, bytes_since_pcr, pos;
++  gsize pcr_bytes, bytes_since_pcr, pos, buf_size;
+   GstBuffer *buffer;
+   GList *l, *end = NULL;
+ 
+@@ -831,14 +831,20 @@ drain_pending_buffers (MpegTSParse2 * parse, gboolean drain_all)
+         pcr_bytes && pos)
+       out_ts += gst_util_uint64_scale (pcr_diff, pos, pcr_bytes);
+ 
+-    pos += gst_buffer_get_size (buffer);
++    buf_size=gst_buffer_get_size(buffer);
++    pos += buf_size;
++    if(pcr_bytes>0)
++        dur=pcr_diff/pcr_bytes*buf_size;
++    else 
++        dur=GST_CLOCK_TIME_NONE;
+ 
+     GST_DEBUG_OBJECT (parse,
+-        "InputTS %" GST_TIME_FORMAT " out %" GST_TIME_FORMAT,
+-        GST_TIME_ARGS (GST_BUFFER_PTS (buffer)), GST_TIME_ARGS (out_ts));
++        "InputTS %" GST_TIME_FORMAT " out %" GST_TIME_FORMAT " dur %" GST_TIME_FORMAT " bytes %" G_GSIZE_FORMAT, 
++        GST_TIME_ARGS (GST_BUFFER_PTS (buffer)), GST_TIME_ARGS (out_ts), GST_TIME_ARGS (dur),buf_size);
+ 
+     GST_BUFFER_PTS (buffer) = out_ts + parse->ts_offset;
+     GST_BUFFER_DTS (buffer) = out_ts + parse->ts_offset;
++    GST_BUFFER_DURATION (buffer) = dur;
+     if (ret == GST_FLOW_OK) {
+       ret = gst_pad_push (parse->srcpad, buffer);
+       ret = gst_flow_combiner_update_flow (parse->flowcombiner, ret);
