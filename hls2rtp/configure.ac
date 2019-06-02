@@ -2,12 +2,12 @@ dnl required version of autoconf
 AC_PREREQ([2.53])
 
 dnl TODO: fill in your package name and package version here
-AC_INIT([my-app],[1.0.0])
+AC_INIT([hls2rtp],[1.0.0])
 
 dnl required version of gstreamer and gst-plugins-base
 GST_REQUIRED=1.0.0
 
-AC_CONFIG_SRCDIR([src/main.c])
+AC_CONFIG_SRCDIR([src/hls2rtp.c])
 AC_CONFIG_HEADERS([config.h])
 
 dnl required version of automake

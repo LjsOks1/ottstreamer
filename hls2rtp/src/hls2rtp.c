@@ -28,7 +28,7 @@ typedef struct _CustomData
 static gboolean handle_message (GstBus * bus, GstMessage * msg,
     CustomData * data);
 
-
+void
 pad_added_handler(GstElement * src, GstPad * new_pad, CustomData * data)
 {
     GstPad *sink_pad = gst_element_get_static_pad(data->q1, "sink");
@@ -210,7 +210,6 @@ handle_message(GstBus * bus, GstMessage * msg, CustomData * data)
     break;
     case GST_MESSAGE_ELEMENT: {
         const GstStructure *s = gst_message_get_structure(msg);
-        gboolean ret;
         GST_LOG("Message received from:%s with structure:%s", GST_MESSAGE_SRC_NAME(msg),
             gst_structure_get_name(s));
 
@@ -218,8 +217,8 @@ handle_message(GstBus * bus, GstMessage * msg, CustomData * data)
             if (strcmp(gst_structure_get_name(s), "adaptive-streaming-statistics") == 0) {
                 guint64 size, dur;
                 GstClockTime buf;
-                ret=gst_structure_get_uint64(s, "fragment-size", &size);
-                ret=gst_structure_get_uint64(s, "fragment-download-time", &dur);
+                gst_structure_get_uint64(s, "fragment-size", &size);
+                gst_structure_get_uint64(s, "fragment-download-time", &dur);
                 g_object_get(data->queue, "current-level-time", &buf, NULL);
                 GST_DEBUG("Downloaded segment: %s  Time:%" GST_TIME_FORMAT ", Buffer:%" GST_TIME_FORMAT, 
                     gst_structure_get_string(s, "uri"), GST_TIME_ARGS(dur),GST_TIME_ARGS(buf));
@@ -245,7 +244,7 @@ handle_message(GstBus * bus, GstMessage * msg, CustomData * data)
         gdouble proportion;
         gint quality;
         gst_message_parse_qos_values(msg, &jitter, &proportion, &quality);
-        GST_DEBUG("QOS values: Jitter:%i, ideal_rate:%d, quality:%i", jitter, proportion, quality);
+        GST_DEBUG("QOS values: Jitter:%li, ideal_rate:%f, quality:%i", jitter, proportion, quality);
         break;
     }
     case GST_MESSAGE_BUFFERING: {
