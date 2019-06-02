@@ -1,0 +1,14 @@
+gst-launch-1.0 -v \
+souphttpsrc location=http://129.228.120.86/streams/mtvlivehd/playlist.m3u8 ! \
+hlsdemux ! \
+identity silent=true name=identity_hls ! \
+tsparse name=tp set-timestamps=true \
+tp.src !  video/mpegts ! \
+identity silent=true name=identity_tp ! \
+queue2 ! \
+rtpmp2tpay ! \
+identity silent=false sync=true name=identity_pay ! \
+rtpjitterbuffer ! \
+udpsink host=239.211.8.5 sync=true buffer-size=100000000 port=1234 auto-multicast=true
+
+
