@@ -1,0 +1,42 @@
+{% extends "base.html" %}
+{% import 'bootstrap/wtf.html' as wtf %}
+
+{% block app_content %}
+
+    <div class="card text-white bg-dark mb-3">
+        <p class="lead"> List of available channels:</p>
+        <table class="table table-dark">
+            <thead><tr>
+                <th scope="col">pid</th>
+                <th scope="col">Channel</th>
+                <th scope="col">Source IP</th>
+                <th scope="col">HLS link</th>
+                <th scope="col">Actions</th>
+            </tr></thead>
+            <tbody>
+               {% for grabber in grabbers %}
+                {% for key,value in grabber.items() %}
+                    <tr>
+                        <th>{{key}}</th>
+                        <td>{{value[3]}}</td>
+                        <td>{{value[2]}}</td>
+                        <td>{{value[5]}}/{{value[3]}}/playlist.m3u8</td>
+                        <td>
+                            <a href="channels?action=stop&pid={{key}}">Stop</a>
+                        </td>
+                    </tr>
+                {%endfor%}
+               {%endfor%}
+            </tbody>
+        </table>
+        <button type="button" class="btn btn-secondary btn-lg"  data-toggle="modal" data-target="#myModal">Add new channel</button>
+        <!-- Modal -->
+        <div class="modal fade" id="myModal" tabindex="-1" role="dialog" aria-labelledby="myModalLabel">
+          <div class="modal-dialog" role="document">
+            <div class="modal-content">
+               {{wtf.quick_form(form)}}
+           </div>
+          </div>
+        </div>
+    </div>
+{% endblock %}
