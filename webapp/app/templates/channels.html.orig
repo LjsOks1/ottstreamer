@@ -1,0 +1,54 @@
+{% extends "base.html" %}
+
+{% block app_content %}
+
+    <div class="card text-white bg-dark mb-3">
+        <p class="lead"> List of available channels:</p>
+        <table class="table table-dark">
+            <thead><tr>
+                <th scope="col">#</th>
+                <th scope="col">Channel</th>
+                <th scope="col">Source IP</th>
+                <th scope="col">HLS link</th>
+                <th scope="col">Actions</th>
+            </tr></thead>
+            <tbody>
+                {% for grabber in grabbers %}
+                    <tr>
+                        <th>{{loop.index}}</th>
+                        <td>{{grabber[3]}}</td>
+                        <td>{{grabber[2]}}</td>
+                        <td>{{grabber[5]}}/{{grabber[3]}}/playlist.m3u8</td>
+                        <td>Actions</td>
+                    </tr>
+                {%endfor%}
+            </tbody>
+        </table>
+        <button type="button" class="btn btn-secondary btn-lg"  data-toggle="modal" data-target="#myModal">Add new channel</button>
+        <!-- Modal -->
+        <div class="modal fade" id="myModal" tabindex="-1" role="dialog" aria-labelledby="myModalLabel">
+          <div class="modal-dialog" role="document">
+            <div class="modal-content">
+              <div class="modal-header">
+                <button type="button" class="close" data-dismiss="modal" aria-label="Close"><span aria-hidden="true">&times;</span></button>
+                <h4 class="modal-title" id="myModalLabel">Modal title</h4>
+              </div>
+              <div class="modal-body">
+                <form action="" method="post" novalidate>
+                    {{form.hidden_tag()}}
+                    <p>
+                        {{form.channel.label}}<br>
+                        {{form.channel}}
+                    </p>
+                    <p>{{form.submit()}}</p>
+                </form>
+              </div>
+              <div class="modal-footer">
+                <button type="button" class="btn btn-default" data-dismiss="modal">Close</button>
+                <button type="button" class="btn btn-primary">Save changes</button>
+              </div>
+            </div>
+          </div>
+        </div>
+    </div>
+{% endblock %}
