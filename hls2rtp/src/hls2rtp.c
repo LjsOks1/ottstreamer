@@ -10,7 +10,7 @@ typedef struct _CustomData
   GstElement *pipeline;          /* The pipeline */
   GstElement *souphttpsrc;      /* HLS source */
   GstElement *hlsdemux;         /* HLS Demux */
-  GstElement *q1;
+  GstElement *s1,*s2;           /* Hack to split the HLS buffers into smaller segments */
   GstElement *tsparse;          /* TS parser */
   GstElement *rtpmp2tpay;       /* RTP payer */
   GstElement *queue;            /* Queue element */
@@ -31,7 +31,7 @@ static gboolean handle_message (GstBus * bus, GstMessage * msg,
 void
 pad_added_handler(GstElement * src, GstPad * new_pad, CustomData * data)
 {
-    GstPad *sink_pad = gst_element_get_static_pad(data->q1, "sink");
+    GstPad *sink_pad = gst_element_get_static_pad(data->s1, "sink");
     GstPadLinkReturn ret;
     GstCaps *new_pad_caps = NULL;
     GstStructure *new_pad_struct = NULL;
@@ -58,6 +58,8 @@ pad_added_handler(GstElement * src, GstPad * new_pad, CustomData * data)
     }
     else {
         GST_INFO("Link succeeded (type '%s').", new_pad_type);
+        gst_element_link_many(data->s1, data->s2, data->tsparse, NULL);
+
     }
 
 exit:
@@ -101,23 +103,23 @@ main (int argc, char *argv[])
     data.pipeline = gst_pipeline_new("ottstreamer");
     data.souphttpsrc = gst_element_factory_make("souphttpsrc", "souphttpsrc");
     data.hlsdemux = gst_element_factory_make("hlsdemux", "hlsdemux");
-    data.q1 = gst_element_factory_make("queue2", NULL);
+    data.s1 = gst_element_factory_make("rtpmp2tpay", NULL);
+    data.s2 = gst_element_factory_make("rtpmp2tdepay", NULL);
     data.tsparse = gst_element_factory_make("tsparse", "tsparse");
     data.rtpmp2tpay = gst_element_factory_make("rtpmp2tpay", "rtpmp2tpay");
     data.queue = gst_element_factory_make("queue2", "queue2");
     data.udpsink = gst_element_factory_make("udpsink", "udpsink");
 
-    if (!data.pipeline || !data.souphttpsrc || !data.hlsdemux || !data.q1 || 
+    if (!data.pipeline || !data.souphttpsrc || !data.hlsdemux || !data.s1 || !data.s2 ||
         !data.tsparse || !data.rtpmp2tpay || !data.queue || !data.udpsink) {
         GST_ERROR("Not all elements could be created.");
         return -1;
     }
     /* Build the pipeline */
-    gst_bin_add_many(GST_BIN(data.pipeline), data.souphttpsrc, data.hlsdemux, data.q1, data.tsparse,
-        data.rtpmp2tpay, data.queue, data.udpsink, NULL);
+    gst_bin_add_many(GST_BIN(data.pipeline), data.souphttpsrc, data.hlsdemux,  data.tsparse,
+        data.rtpmp2tpay, data.queue, data.udpsink, data.s1, data.s2, NULL);
 
     res1 = gst_element_link(data.souphttpsrc, data.hlsdemux);
-    res1 = gst_element_link(data.q1, data.tsparse);
     res3 = gst_element_link_pads(data.tsparse, "src", data.rtpmp2tpay, "sink");
     res2 = gst_element_link_many(data.rtpmp2tpay, data.queue, data.udpsink, NULL);
     if ((res1&res2&res3) != TRUE) {
@@ -131,6 +133,7 @@ main (int argc, char *argv[])
     /* Set properties */
     g_object_set(data.souphttpsrc, "location", argv[1], NULL);
     g_object_set(data.hlsdemux, "message-forward", TRUE, NULL);
+    g_object_set(data.s1, "mtu", 100000, NULL);
     g_object_set(data.tsparse, "set-timestamps", TRUE, NULL);
     g_object_set(data.udpsink, "clients", argv[2], NULL);
     g_object_set(data.udpsink, "qos", FALSE, NULL);

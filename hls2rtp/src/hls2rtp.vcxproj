@@ -59,9 +59,16 @@
   </ImportGroup>
   <ImportGroup Label="PropertySheets" Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">
     <Import Project="$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props" Condition="exists('$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props')" Label="LocalAppDataPlatform" />
+    <Import Project="..\..\..\..\..\..\gstreamer\1.0\x86_64\share\vs\2010\msvc\x86_64.props" />
+    <Import Project="..\..\..\..\..\..\gstreamer\1.0\x86_64\share\vs\2010\libs\gstreamer-1.0.props" />
+    <Import Project="..\..\..\..\..\..\gstreamer\1.0\x86_64\share\vs\2010\libs\gstreamer-app-1.0.props" />
   </ImportGroup>
   <ImportGroup Label="PropertySheets" Condition="'$(Configuration)|$(Platform)'=='Release|x64'">
     <Import Project="$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props" Condition="exists('$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props')" Label="LocalAppDataPlatform" />
+    <Import Project="..\..\..\..\..\..\gstreamer\1.0\x86_64\share\vs\2010\msvc\x86_64.props" />
+    <Import Project="..\..\..\..\..\..\gstreamer\1.0\x86_64\share\vs\2010\libs\gstreamer-mpegts-1.0.props" />
+    <Import Project="..\..\..\..\..\..\gstreamer\1.0\x86_64\share\vs\2010\libs\gstreamer-app-1.0.props" />
+    <Import Project="..\..\..\..\..\..\gstreamer\1.0\x86_64\share\vs\2010\libs\gstreamer-net-1.0.props" />
   </ImportGroup>
   <PropertyGroup Label="UserMacros" />
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">
@@ -126,9 +133,10 @@
       <AdditionalLibraryDirectories>C:\gstreamer\1.0\x86_64\lib;%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
       <AdditionalDependencies>oldnames.lib;msvcrt.lib;gstreamer-1.0.lib;gobject-2.0.lib;glib-2.0.lib;intl.lib;kernel32.lib;user32.lib;gdi32.lib;winspool.lib;comdlg32.lib;advapi32.lib;shell32.lib;ole32.lib;oleaut32.lib;uuid.lib;$(VcpkgRoot)debug\lib\*.lib</AdditionalDependencies>
       <IgnoreAllDefaultLibraries>false</IgnoreAllDefaultLibraries>
+      <IgnoreSpecificDefaultLibraries>libcmt;%(IgnoreSpecificDefaultLibraries)</IgnoreSpecificDefaultLibraries>
     </Link>
     <ClCompile>
-      <RuntimeLibrary>MultiThreaded</RuntimeLibrary>
+      <RuntimeLibrary>MultiThreadedDLL</RuntimeLibrary>
     </ClCompile>
   </ItemDefinitionGroup>
   <ItemGroup>

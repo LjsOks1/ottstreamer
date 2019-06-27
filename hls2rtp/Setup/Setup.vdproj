@@ -15,13 +15,25 @@
     {
         "Entry"
         {
+        "MsmKey" = "8:_090C8458595645A5992B8010C3A7988A"
+        "OwnerKey" = "8:_UNDEFINED"
+        "MsmSig" = "8:_UNDEFINED"
+        }
+        "Entry"
+        {
         "MsmKey" = "8:_2986863769C24B0F86B44974E50BE69C"
         "OwnerKey" = "8:_UNDEFINED"
         "MsmSig" = "8:_UNDEFINED"
         }
         "Entry"
         {
-        "MsmKey" = "8:_43A1854C6F11434C8E515ACC657E9E3F"
+        "MsmKey" = "8:_3007F3FE8C3F4B35A58BE594EA2B06D7"
+        "OwnerKey" = "8:_UNDEFINED"
+        "MsmSig" = "8:_UNDEFINED"
+        }
+        "Entry"
+        {
+        "MsmKey" = "8:_3353977F29A243A195B3A68F4E1165CB"
         "OwnerKey" = "8:_UNDEFINED"
         "MsmSig" = "8:_UNDEFINED"
         }
@@ -39,13 +51,13 @@
         }
         "Entry"
         {
-        "MsmKey" = "8:_52C6118CD1004C488FD8B879AD833E2A"
+        "MsmKey" = "8:_48D109D359D14DAC86C02A48B441E01C"
         "OwnerKey" = "8:_UNDEFINED"
         "MsmSig" = "8:_UNDEFINED"
         }
         "Entry"
         {
-        "MsmKey" = "8:_597FBF4727CB4217925E09DF243C809C"
+        "MsmKey" = "8:_52C6118CD1004C488FD8B879AD833E2A"
         "OwnerKey" = "8:_UNDEFINED"
         "MsmSig" = "8:_UNDEFINED"
         }
@@ -57,7 +69,31 @@
         }
         "Entry"
         {
-        "MsmKey" = "8:_69D9204F007F462197766FA969C43197"
+        "MsmKey" = "8:_7669873601CD4BDC97466731549E49D0"
+        "OwnerKey" = "8:_UNDEFINED"
+        "MsmSig" = "8:_UNDEFINED"
+        }
+        "Entry"
+        {
+        "MsmKey" = "8:_851A004C953740BA89C1949355EE41C6"
+        "OwnerKey" = "8:_UNDEFINED"
+        "MsmSig" = "8:_UNDEFINED"
+        }
+        "Entry"
+        {
+        "MsmKey" = "8:_855C184EB8434575A25656391FC1F732"
+        "OwnerKey" = "8:_UNDEFINED"
+        "MsmSig" = "8:_UNDEFINED"
+        }
+        "Entry"
+        {
+        "MsmKey" = "8:_894A6DCD48AF4F0C90116F4BD96578FC"
+        "OwnerKey" = "8:_UNDEFINED"
+        "MsmSig" = "8:_UNDEFINED"
+        }
+        "Entry"
+        {
+        "MsmKey" = "8:_9452D65126D64C3CBBFD2475419EB8A0"
         "OwnerKey" = "8:_UNDEFINED"
         "MsmSig" = "8:_UNDEFINED"
         }
@@ -69,13 +105,13 @@
         }
         "Entry"
         {
-        "MsmKey" = "8:_A28CE07A63FC45FEB51C1CE55927537C"
+        "MsmKey" = "8:_A354BE11DC6E421988B1F66B321F7528"
         "OwnerKey" = "8:_UNDEFINED"
         "MsmSig" = "8:_UNDEFINED"
         }
         "Entry"
         {
-        "MsmKey" = "8:_A354BE11DC6E421988B1F66B321F7528"
+        "MsmKey" = "8:_A804DFE51A36403D8F79D84B33BEFB85"
         "OwnerKey" = "8:_UNDEFINED"
         "MsmSig" = "8:_UNDEFINED"
         }
@@ -93,19 +129,55 @@
         }
         "Entry"
         {
+        "MsmKey" = "8:_B4CB375B5E0449B7B8B82BA31E1D5380"
+        "OwnerKey" = "8:_UNDEFINED"
+        "MsmSig" = "8:_UNDEFINED"
+        }
+        "Entry"
+        {
         "MsmKey" = "8:_B7CA793E8A5944D09A7D05C221328B46"
         "OwnerKey" = "8:_UNDEFINED"
         "MsmSig" = "8:_UNDEFINED"
         }
         "Entry"
         {
-        "MsmKey" = "8:_B8FD33EC67FE4A9CA66D2867BEDBEBA0"
+        "MsmKey" = "8:_BCE70415B44540C9A0D43152C4BF59E0"
+        "OwnerKey" = "8:_UNDEFINED"
+        "MsmSig" = "8:_UNDEFINED"
+        }
+        "Entry"
+        {
+        "MsmKey" = "8:_BCECBE375EB34AC7A71EA753BF8BB8ED"
         "OwnerKey" = "8:_UNDEFINED"
         "MsmSig" = "8:_UNDEFINED"
         }
         "Entry"
         {
         "MsmKey" = "8:_CD8152787C6D4826B6AFAEA46BC29D76"
+        "OwnerKey" = "8:_UNDEFINED"
+        "MsmSig" = "8:_UNDEFINED"
+        }
+        "Entry"
+        {
+        "MsmKey" = "8:_D90EBBE3924348D29CA3C30C257C2A11"
+        "OwnerKey" = "8:_UNDEFINED"
+        "MsmSig" = "8:_UNDEFINED"
+        }
+        "Entry"
+        {
+        "MsmKey" = "8:_E20E115173C546CF845FB80FED3E4550"
+        "OwnerKey" = "8:_UNDEFINED"
+        "MsmSig" = "8:_UNDEFINED"
+        }
+        "Entry"
+        {
+        "MsmKey" = "8:_F27B3B4346624398B857020BAF2035B6"
+        "OwnerKey" = "8:_UNDEFINED"
+        "MsmSig" = "8:_UNDEFINED"
+        }
+        "Entry"
+        {
+        "MsmKey" = "8:_FDE6CF1014954651AE765BF04A62B3C6"
         "OwnerKey" = "8:_UNDEFINED"
         "MsmSig" = "8:_UNDEFINED"
         }
@@ -187,6 +259,20 @@
     {
         "CustomAction"
         {
+            "{4AA51A2D-7D85-4A59-BA75-B0809FC8B380}:_B470D91223104DD99CA744CED04C0925"
+            {
+            "Name" = "8:postinstall.vbs"
+            "Condition" = "8:"
+            "Object" = "8:_F27B3B4346624398B857020BAF2035B6"
+            "FileType" = "3:4"
+            "InstallAction" = "3:1"
+            "Arguments" = "8:"
+            "EntryPoint" = "8:"
+            "Sequence" = "3:1"
+            "Identifier" = "8:_A2CA92F3_10F0_4D84_9F00_1BB83F66A261"
+            "InstallerClass" = "11:FALSE"
+            "CustomActionData" = "8:[TARGETDIR]"
+            }
         }
         "DefaultFeature"
         {
@@ -202,12 +288,52 @@
         }
         "File"
         {
-            "{1FB2D0AE-D3B9-43D4-B9DD-F88EC61E35DE}:_43A1854C6F11434C8E515ACC657E9E3F"
+            "{1FB2D0AE-D3B9-43D4-B9DD-F88EC61E35DE}:_090C8458595645A5992B8010C3A7988A"
             {
-            "SourcePath" = "8:C:\\gstreamer\\1.0\\x86_64\\bin\\gstmpegts-1.0-0.dll"
-            "TargetName" = "8:gstmpegts-1.0-0.dll"
+            "SourcePath" = "8:C:\\gstreamer\\1.0\\x86_64\\lib\\gstreamer-1.0\\gstrtp.dll"
+            "TargetName" = "8:gstrtp.dll"
             "Tag" = "8:"
-            "Folder" = "8:_AF6E342CC6D742EA961FA5820DBF4FF4"
+            "Folder" = "8:_E530784CBA824082AE1AFB6FF130C8E1"
+            "Condition" = "8:"
+            "Transitive" = "11:FALSE"
+            "Vital" = "11:TRUE"
+            "ReadOnly" = "11:FALSE"
+            "Hidden" = "11:FALSE"
+            "System" = "11:FALSE"
+            "Permanent" = "11:FALSE"
+            "SharedLegacy" = "11:FALSE"
+            "PackageAs" = "3:1"
+            "Register" = "3:1"
+            "Exclude" = "11:FALSE"
+            "IsDependency" = "11:FALSE"
+            "IsolateTo" = "8:"
+            }
+            "{1FB2D0AE-D3B9-43D4-B9DD-F88EC61E35DE}:_3007F3FE8C3F4B35A58BE594EA2B06D7"
+            {
+            "SourcePath" = "8:C:\\gstreamer\\1.0\\x86_64\\lib\\gstreamer-1.0\\gstmpegtsdemux.pdb"
+            "TargetName" = "8:gstmpegtsdemux.pdb"
+            "Tag" = "8:"
+            "Folder" = "8:_E530784CBA824082AE1AFB6FF130C8E1"
+            "Condition" = "8:"
+            "Transitive" = "11:FALSE"
+            "Vital" = "11:TRUE"
+            "ReadOnly" = "11:FALSE"
+            "Hidden" = "11:FALSE"
+            "System" = "11:FALSE"
+            "Permanent" = "11:FALSE"
+            "SharedLegacy" = "11:FALSE"
+            "PackageAs" = "3:1"
+            "Register" = "3:1"
+            "Exclude" = "11:FALSE"
+            "IsDependency" = "11:FALSE"
+            "IsolateTo" = "8:"
+            }
+            "{1FB2D0AE-D3B9-43D4-B9DD-F88EC61E35DE}:_3353977F29A243A195B3A68F4E1165CB"
+            {
+            "SourcePath" = "8:C:\\gstreamer\\1.0\\x86_64\\bin\\gstmpegts-1.0-0.pdb"
+            "TargetName" = "8:gstmpegts-1.0-0.pdb"
+            "Tag" = "8:"
+            "Folder" = "8:_E530784CBA824082AE1AFB6FF130C8E1"
             "Condition" = "8:"
             "Transitive" = "11:FALSE"
             "Vital" = "11:TRUE"
@@ -242,12 +368,12 @@
             "IsDependency" = "11:FALSE"
             "IsolateTo" = "8:"
             }
-            "{1FB2D0AE-D3B9-43D4-B9DD-F88EC61E35DE}:_597FBF4727CB4217925E09DF243C809C"
+            "{1FB2D0AE-D3B9-43D4-B9DD-F88EC61E35DE}:_48D109D359D14DAC86C02A48B441E01C"
             {
-            "SourcePath" = "8:C:\\gstreamer\\1.0\\x86_64\\lib\\gstreamer-1.0\\gstmpegtsdemux.dll"
-            "TargetName" = "8:gstmpegtsdemux.dll"
+            "SourcePath" = "8:..\\tests\\hls2rtp_vh1.bat"
+            "TargetName" = "8:hls2rtp_vh1.bat"
             "Tag" = "8:"
-            "Folder" = "8:_6F81FEAE27F0493082BC664659AAE114"
+            "Folder" = "8:_D24152E2205444A1A404652DE06484B1"
             "Condition" = "8:"
             "Transitive" = "11:FALSE"
             "Vital" = "11:TRUE"
@@ -262,12 +388,12 @@
             "IsDependency" = "11:FALSE"
             "IsolateTo" = "8:"
             }
-            "{1FB2D0AE-D3B9-43D4-B9DD-F88EC61E35DE}:_69D9204F007F462197766FA969C43197"
+            "{1FB2D0AE-D3B9-43D4-B9DD-F88EC61E35DE}:_7669873601CD4BDC97466731549E49D0"
             {
             "SourcePath" = "8:C:\\gstreamer\\1.0\\x86_64\\lib\\gstreamer-1.0\\gstrtp.pdb"
             "TargetName" = "8:gstrtp.pdb"
             "Tag" = "8:"
-            "Folder" = "8:_6F81FEAE27F0493082BC664659AAE114"
+            "Folder" = "8:_E530784CBA824082AE1AFB6FF130C8E1"
             "Condition" = "8:"
             "Transitive" = "11:FALSE"
             "Vital" = "11:TRUE"
@@ -282,7 +408,67 @@
             "IsDependency" = "11:FALSE"
             "IsolateTo" = "8:"
             }
-            "{1FB2D0AE-D3B9-43D4-B9DD-F88EC61E35DE}:_A28CE07A63FC45FEB51C1CE55927537C"
+            "{1FB2D0AE-D3B9-43D4-B9DD-F88EC61E35DE}:_851A004C953740BA89C1949355EE41C6"
+            {
+            "SourcePath" = "8:C:\\gstreamer\\1.0\\x86_64\\bin\\gstmpegts-1.0-0.dll"
+            "TargetName" = "8:gstmpegts-1.0-0.dll"
+            "Tag" = "8:"
+            "Folder" = "8:_E530784CBA824082AE1AFB6FF130C8E1"
+            "Condition" = "8:"
+            "Transitive" = "11:FALSE"
+            "Vital" = "11:TRUE"
+            "ReadOnly" = "11:FALSE"
+            "Hidden" = "11:FALSE"
+            "System" = "11:FALSE"
+            "Permanent" = "11:FALSE"
+            "SharedLegacy" = "11:FALSE"
+            "PackageAs" = "3:1"
+            "Register" = "3:1"
+            "Exclude" = "11:FALSE"
+            "IsDependency" = "11:FALSE"
+            "IsolateTo" = "8:"
+            }
+            "{1FB2D0AE-D3B9-43D4-B9DD-F88EC61E35DE}:_855C184EB8434575A25656391FC1F732"
+            {
+            "SourcePath" = "8:C:\\gstreamer\\1.0\\x86_64\\bin\\gstmpegts-1.0-0.pdb"
+            "TargetName" = "8:gstmpegts-1.0-0.pdb"
+            "Tag" = "8:"
+            "Folder" = "8:_AF6E342CC6D742EA961FA5820DBF4FF4"
+            "Condition" = "8:"
+            "Transitive" = "11:FALSE"
+            "Vital" = "11:TRUE"
+            "ReadOnly" = "11:FALSE"
+            "Hidden" = "11:FALSE"
+            "System" = "11:FALSE"
+            "Permanent" = "11:FALSE"
+            "SharedLegacy" = "11:FALSE"
+            "PackageAs" = "3:1"
+            "Register" = "3:1"
+            "Exclude" = "11:FALSE"
+            "IsDependency" = "11:FALSE"
+            "IsolateTo" = "8:"
+            }
+            "{1FB2D0AE-D3B9-43D4-B9DD-F88EC61E35DE}:_894A6DCD48AF4F0C90116F4BD96578FC"
+            {
+            "SourcePath" = "8:C:\\gstreamer\\1.0\\x86_64\\bin\\gstrtp.dll"
+            "TargetName" = "8:gstrtp.dll"
+            "Tag" = "8:"
+            "Folder" = "8:_AF6E342CC6D742EA961FA5820DBF4FF4"
+            "Condition" = "8:"
+            "Transitive" = "11:FALSE"
+            "Vital" = "11:TRUE"
+            "ReadOnly" = "11:FALSE"
+            "Hidden" = "11:FALSE"
+            "System" = "11:FALSE"
+            "Permanent" = "11:FALSE"
+            "SharedLegacy" = "11:FALSE"
+            "PackageAs" = "3:1"
+            "Register" = "3:1"
+            "Exclude" = "11:FALSE"
+            "IsDependency" = "11:FALSE"
+            "IsolateTo" = "8:"
+            }
+            "{1FB2D0AE-D3B9-43D4-B9DD-F88EC61E35DE}:_9452D65126D64C3CBBFD2475419EB8A0"
             {
             "SourcePath" = "8:C:\\gstreamer\\1.0\\x86_64\\lib\\gstreamer-1.0\\gstrtp.dll"
             "TargetName" = "8:gstrtp.dll"
@@ -302,7 +488,147 @@
             "IsDependency" = "11:FALSE"
             "IsolateTo" = "8:"
             }
-            "{1FB2D0AE-D3B9-43D4-B9DD-F88EC61E35DE}:_B8FD33EC67FE4A9CA66D2867BEDBEBA0"
+            "{1FB2D0AE-D3B9-43D4-B9DD-F88EC61E35DE}:_A804DFE51A36403D8F79D84B33BEFB85"
+            {
+            "SourcePath" = "8:C:\\gstreamer\\1.0\\x86_64\\bin\\gstmpegts-1.0-0.dll"
+            "TargetName" = "8:gstmpegts-1.0-0.dll"
+            "Tag" = "8:"
+            "Folder" = "8:_AF6E342CC6D742EA961FA5820DBF4FF4"
+            "Condition" = "8:"
+            "Transitive" = "11:FALSE"
+            "Vital" = "11:TRUE"
+            "ReadOnly" = "11:FALSE"
+            "Hidden" = "11:FALSE"
+            "System" = "11:FALSE"
+            "Permanent" = "11:FALSE"
+            "SharedLegacy" = "11:FALSE"
+            "PackageAs" = "3:1"
+            "Register" = "3:1"
+            "Exclude" = "11:FALSE"
+            "IsDependency" = "11:FALSE"
+            "IsolateTo" = "8:"
+            }
+            "{1FB2D0AE-D3B9-43D4-B9DD-F88EC61E35DE}:_B4CB375B5E0449B7B8B82BA31E1D5380"
+            {
+            "SourcePath" = "8:..\\src\\postinstall.vbs"
+            "TargetName" = "8:postinstall.vbs"
+            "Tag" = "8:"
+            "Folder" = "8:_D24152E2205444A1A404652DE06484B1"
+            "Condition" = "8:"
+            "Transitive" = "11:FALSE"
+            "Vital" = "11:TRUE"
+            "ReadOnly" = "11:FALSE"
+            "Hidden" = "11:FALSE"
+            "System" = "11:FALSE"
+            "Permanent" = "11:FALSE"
+            "SharedLegacy" = "11:FALSE"
+            "PackageAs" = "3:1"
+            "Register" = "3:1"
+            "Exclude" = "11:FALSE"
+            "IsDependency" = "11:FALSE"
+            "IsolateTo" = "8:"
+            }
+            "{1FB2D0AE-D3B9-43D4-B9DD-F88EC61E35DE}:_BCE70415B44540C9A0D43152C4BF59E0"
+            {
+            "SourcePath" = "8:C:\\gstreamer\\1.0\\x86_64\\lib\\gstreamer-1.0\\gstmpegtsdemux.dll"
+            "TargetName" = "8:gstmpegtsdemux.dll"
+            "Tag" = "8:"
+            "Folder" = "8:_E530784CBA824082AE1AFB6FF130C8E1"
+            "Condition" = "8:"
+            "Transitive" = "11:FALSE"
+            "Vital" = "11:TRUE"
+            "ReadOnly" = "11:FALSE"
+            "Hidden" = "11:FALSE"
+            "System" = "11:FALSE"
+            "Permanent" = "11:FALSE"
+            "SharedLegacy" = "11:FALSE"
+            "PackageAs" = "3:1"
+            "Register" = "3:1"
+            "Exclude" = "11:FALSE"
+            "IsDependency" = "11:FALSE"
+            "IsolateTo" = "8:"
+            }
+            "{1FB2D0AE-D3B9-43D4-B9DD-F88EC61E35DE}:_BCECBE375EB34AC7A71EA753BF8BB8ED"
+            {
+            "SourcePath" = "8:C:\\gstreamer\\1.0\\x86_64\\bin\\gstrtp.pdb"
+            "TargetName" = "8:gstrtp.pdb"
+            "Tag" = "8:"
+            "Folder" = "8:_AF6E342CC6D742EA961FA5820DBF4FF4"
+            "Condition" = "8:"
+            "Transitive" = "11:FALSE"
+            "Vital" = "11:TRUE"
+            "ReadOnly" = "11:FALSE"
+            "Hidden" = "11:FALSE"
+            "System" = "11:FALSE"
+            "Permanent" = "11:FALSE"
+            "SharedLegacy" = "11:FALSE"
+            "PackageAs" = "3:1"
+            "Register" = "3:1"
+            "Exclude" = "11:FALSE"
+            "IsDependency" = "11:FALSE"
+            "IsolateTo" = "8:"
+            }
+            "{1FB2D0AE-D3B9-43D4-B9DD-F88EC61E35DE}:_D90EBBE3924348D29CA3C30C257C2A11"
+            {
+            "SourcePath" = "8:C:\\gstreamer\\1.0\\x86_64\\lib\\gstreamer-1.0\\gstmpegtsdemux.dll"
+            "TargetName" = "8:gstmpegtsdemux.dll"
+            "Tag" = "8:"
+            "Folder" = "8:_6F81FEAE27F0493082BC664659AAE114"
+            "Condition" = "8:"
+            "Transitive" = "11:FALSE"
+            "Vital" = "11:TRUE"
+            "ReadOnly" = "11:FALSE"
+            "Hidden" = "11:FALSE"
+            "System" = "11:FALSE"
+            "Permanent" = "11:FALSE"
+            "SharedLegacy" = "11:FALSE"
+            "PackageAs" = "3:1"
+            "Register" = "3:1"
+            "Exclude" = "11:FALSE"
+            "IsDependency" = "11:FALSE"
+            "IsolateTo" = "8:"
+            }
+            "{1FB2D0AE-D3B9-43D4-B9DD-F88EC61E35DE}:_E20E115173C546CF845FB80FED3E4550"
+            {
+            "SourcePath" = "8:C:\\gstreamer\\1.0\\x86_64\\lib\\gstreamer-1.0\\gstrtp.pdb"
+            "TargetName" = "8:gstrtp.pdb"
+            "Tag" = "8:"
+            "Folder" = "8:_6F81FEAE27F0493082BC664659AAE114"
+            "Condition" = "8:"
+            "Transitive" = "11:FALSE"
+            "Vital" = "11:TRUE"
+            "ReadOnly" = "11:FALSE"
+            "Hidden" = "11:FALSE"
+            "System" = "11:FALSE"
+            "Permanent" = "11:FALSE"
+            "SharedLegacy" = "11:FALSE"
+            "PackageAs" = "3:1"
+            "Register" = "3:1"
+            "Exclude" = "11:FALSE"
+            "IsDependency" = "11:FALSE"
+            "IsolateTo" = "8:"
+            }
+            "{1FB2D0AE-D3B9-43D4-B9DD-F88EC61E35DE}:_F27B3B4346624398B857020BAF2035B6"
+            {
+            "SourcePath" = "8:..\\src\\postinstall.vbs"
+            "TargetName" = "8:postinstall.vbs"
+            "Tag" = "8:"
+            "Folder" = "8:_D24152E2205444A1A404652DE06484B1"
+            "Condition" = "8:"
+            "Transitive" = "11:FALSE"
+            "Vital" = "11:TRUE"
+            "ReadOnly" = "11:FALSE"
+            "Hidden" = "11:FALSE"
+            "System" = "11:FALSE"
+            "Permanent" = "11:FALSE"
+            "SharedLegacy" = "11:FALSE"
+            "PackageAs" = "3:1"
+            "Register" = "3:1"
+            "Exclude" = "11:TRUE"
+            "IsDependency" = "11:FALSE"
+            "IsolateTo" = "8:"
+            }
+            "{1FB2D0AE-D3B9-43D4-B9DD-F88EC61E35DE}:_FDE6CF1014954651AE765BF04A62B3C6"
             {
             "SourcePath" = "8:C:\\gstreamer\\1.0\\x86_64\\lib\\gstreamer-1.0\\gstmpegtsdemux.pdb"
             "TargetName" = "8:gstmpegtsdemux.pdb"
@@ -382,6 +708,28 @@
                         {
                         }
                     }
+                    "{9EF0B969-E518-4E46-987F-47570745A589}:_D24152E2205444A1A404652DE06484B1"
+                    {
+                    "Name" = "8:scripts"
+                    "AlwaysCreate" = "11:FALSE"
+                    "Condition" = "8:"
+                    "Transitive" = "11:FALSE"
+                    "Property" = "8:_77A6BB3CAE134499B0B4207FB65766CA"
+                        "Folders"
+                        {
+                        }
+                    }
+                    "{9EF0B969-E518-4E46-987F-47570745A589}:_E530784CBA824082AE1AFB6FF130C8E1"
+                    {
+                    "Name" = "8:patches"
+                    "AlwaysCreate" = "11:FALSE"
+                    "Condition" = "8:"
+                    "Transitive" = "11:FALSE"
+                    "Property" = "8:_DAB08E8AE4554792A54C71B50490BC3F"
+                        "Folders"
+                        {
+                        }
+                    }
                 }
             }
             "{1525181F-901A-416C-8A58-119130FE478E}:_B34D1C909D80499195844898C822ED3D"
@@ -411,15 +759,15 @@
         {
         "Name" = "8:Microsoft Visual Studio"
         "ProductName" = "8:hls2rtp"
-        "ProductCode" = "8:{047B657C-B3EE-4C11-B25B-57401509B983}"
-        "PackageCode" = "8:{5C4D4475-7DD7-48B6-B35E-09697D81E014}"
+        "ProductCode" = "8:{663E4C61-A65E-4931-B65C-89ACD5C820AE}"
+        "PackageCode" = "8:{1FDF4E32-A627-4F76-A5CC-5A69DA17FE50}"
         "UpgradeCode" = "8:{357ECE41-149E-48E8-909B-050650FD24DB}"
         "AspNetVersion" = "8:4.0.30319.0"
         "RestartWWWService" = "11:FALSE"
         "RemovePreviousVersions" = "11:TRUE"
         "DetectNewerInstalledVersion" = "11:FALSE"
         "InstallAllUsers" = "11:TRUE"
-        "ProductVersion" = "8:1.0.20"
+        "ProductVersion" = "8:1.0.35"
         "Manufacturer" = "8:ljsoks"
         "ARPHELPTELEPHONE" = "8:"
         "ARPHELPLINK" = "8:"
@@ -435,7 +783,7 @@
         "UseSystemSearchPath" = "11:TRUE"
         "TargetPlatform" = "3:1"
         "PreBuildEvent" = "8:"
-        "PostBuildEvent" = "8:"
+        "PostBuildEvent" = "8:\r\n"
         "RunPostBuildEvent" = "3:0"
         }
         "Registry"
@@ -492,14 +840,6 @@
                                                         }
                                                         "Values"
                                                         {
-                                                            "{ADCFDA98-8FDD-45E4-90BC-E3D20B029870}:_F0B9196B7B6144F7890C5BE7E931707F"
-                                                            {
-                                                            "Name" = "8:path"
-                                                            "Condition" = "8:"
-                                                            "Transitive" = "11:FALSE"
-                                                            "ValueTypes" = "3:2"
-                                                            "Value" = "8:[TARGETDIR]bin"
-                                                            }
                                                         }
                                                     }
                                                 }
