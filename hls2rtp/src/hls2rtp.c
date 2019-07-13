@@ -31,7 +31,7 @@ static gboolean handle_message (GstBus * bus, GstMessage * msg,
 void
 pad_added_handler(GstElement * src, GstPad * new_pad, CustomData * data)
 {
-    GstPad *sink_pad = gst_element_get_static_pad(data->s1, "sink");
+    GstPad *sink_pad = gst_element_get_static_pad(data->tsparse, "sink");
     GstPadLinkReturn ret;
     GstCaps *new_pad_caps = NULL;
     GstStructure *new_pad_struct = NULL;
@@ -94,7 +94,8 @@ main (int argc, char *argv[])
   CustomData data;
   GstStateChangeReturn ret;
   gboolean res1,res2,res3;
-
+  GstCaps *caps;
+  
   /* Initialize GStreamer */
   gst_init (&argc, &argv);
   GST_DEBUG_CATEGORY_INIT(ottstreamer, "ottstreamer", 0, "Let's start streaming....");
@@ -103,24 +104,25 @@ main (int argc, char *argv[])
     data.pipeline = gst_pipeline_new("ottstreamer");
     data.souphttpsrc = gst_element_factory_make("souphttpsrc", "souphttpsrc");
     data.hlsdemux = gst_element_factory_make("hlsdemux", "hlsdemux");
-    data.s1 = gst_element_factory_make("rtpmp2tpay", NULL);
-    data.s2 = gst_element_factory_make("rtpmp2tdepay", NULL);
+//    data.s1 = gst_element_factory_make("rtpmp2tpay", NULL);
+//    data.s2 = gst_element_factory_make("rtpmp2tdepay", NULL);
     data.tsparse = gst_element_factory_make("tsparse", "tsparse");
     data.rtpmp2tpay = gst_element_factory_make("rtpmp2tpay", "rtpmp2tpay");
     data.queue = gst_element_factory_make("queue2", "queue2");
     data.udpsink = gst_element_factory_make("udpsink", "udpsink");
 
-    if (!data.pipeline || !data.souphttpsrc || !data.hlsdemux || !data.s1 || !data.s2 ||
+    if (!data.pipeline || !data.souphttpsrc || !data.hlsdemux || //!data.s1 || !data.s2 ||
         !data.tsparse || !data.rtpmp2tpay || !data.queue || !data.udpsink) {
         GST_ERROR("Not all elements could be created.");
         return -1;
     }
     /* Build the pipeline */
     gst_bin_add_many(GST_BIN(data.pipeline), data.souphttpsrc, data.hlsdemux,  data.tsparse,
-        data.rtpmp2tpay, data.queue, data.udpsink, data.s1, data.s2, NULL);
+        data.rtpmp2tpay, data.queue, data.udpsink, /*data.s1, data.s2,*/ NULL);
 
+    caps = gst_caps_new_simple("video/mpegts", "packetsize", G_TYPE_INT, 188, "systemstream", G_TYPE_BOOLEAN, TRUE, NULL);
     res1 = gst_element_link(data.souphttpsrc, data.hlsdemux);
-    res3 = gst_element_link_pads(data.tsparse, "src", data.rtpmp2tpay, "sink");
+    res3 = gst_element_link_pads_filtered(data.tsparse, "program_100", data.rtpmp2tpay, "sink",caps);
     res2 = gst_element_link_many(data.rtpmp2tpay, data.queue, data.udpsink, NULL);
     if ((res1&res2&res3) != TRUE) {
         GST_ERROR("Elements could not be linked.");
@@ -133,8 +135,8 @@ main (int argc, char *argv[])
     /* Set properties */
     g_object_set(data.souphttpsrc, "location", argv[1], NULL);
     g_object_set(data.hlsdemux, "message-forward", TRUE, NULL);
-    g_object_set(data.s1, "mtu", 100000, NULL);
-    g_object_set(data.tsparse, "set-timestamps", TRUE, NULL);
+    //g_object_set(data.s1, "mtu", 100000, NULL);
+    //g_object_set(data.tsparse, "set-timestamps", TRUE, NULL);
     g_object_set(data.udpsink, "clients", argv[2], NULL);
     g_object_set(data.udpsink, "qos", FALSE, NULL);
     g_object_set(data.queue, "max-size-time", 30000000000,NULL);
