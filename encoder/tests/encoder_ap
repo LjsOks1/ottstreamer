@@ -1,0 +1,14 @@
+gst-launch-1.0  \
+mpegtsmux name=mux prog-map=program_map,PCR_100=sink_100,sink_100=100,sink_101=100,sink_104=100,PMT_100=190,sink_112=100,sink_128=100 \
+multiqueue name=q max-size-buffers=23 max-size-bytes=0 max-size-time=0 sync-by-running-time=TRUE \
+filesrc location=../../streams/ad5.mp4 ! \
+decodebin name=dec \
+dec.src_0 ! videoscale ! video/x-raw,width=720,height=576 ! \
+   x264enc option-string="no-scenecut:keyint=12" key-int-max=12 ! video/x-h264,profile=main ! h264parse ! q.sink_1 q.src_1 ! identity name=i_v silent=true ! mux.sink_100 \
+dec.src_1 ! audioconvert ! audioresample ! tee name=t \
+   t.src_0 ! avenc_mp2 bitrate=192000 ! q.sink_2 q.src_2 ! identity name=i_a1 silent=true ! mux.sink_104 \
+   t.src_1 ! avenc_mp2 bitrate=192000 ! q.sink_3 q.src_3 ! identity name=i_a2 silent=true ! mux.sink_101 \
+fakesrc num-buffers=1 sizetype=2 sizemax=5 ! application/spliceinfo ! q.sink_4 q.src_4 ! identity name=i_112 silent=false ! mux.sink_112 \
+fakesrc num-buffers=1 sizetype=2 sizemax=5 ! application/x-teletext ! q.sink_5 q.src_5 ! identity name=i_128 silent=false ! mux.sink_128 \
+mux.src ! filesink location=/var/www/html/streams/ap/ad5.ts
+
