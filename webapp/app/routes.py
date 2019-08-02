@@ -4,6 +4,8 @@ import psutil
 from app.forms import ChannelForm
 import os
 from config import Config
+import re
+import traceback
 
 @app.route('/')
 @app.route('/index')
@@ -36,7 +38,6 @@ def channels():
 @app.route('/channels',methods=['POST'])
 def add_channel():
     form=ChannelForm()
-    print(form.channel.data)
     for proc in psutil.process_iter():
         try:
             if proc.cmdline()[3].lower()==form.channel.data:
@@ -52,7 +53,30 @@ def add_channel():
 
 @app.route('/clients')
 def clients():
-    return render_template('clients.html')
+    # Logformat "%h %l %u %t %{begin:msec}t %{end:msec}t \"%r\" %>s %O \"%{Referer}i\" \"%{User-Agent}i\"" combined
+    regex='([(\d\.)]+) - - \[(.*?)\] ([0-9]+) ([0-9]+) "(.*?)" ([0-9]+) ([0-9]+) "(.*?)" "(.*?)"'
+    logs={}
+    with open('/var/log/apache2/access.log','r') as infile:
+        for line in infile:
+            try:
+                item={}
+                fields=re.match(regex,line).groups()
+                channel=fields[4].split('/')[2]
+                item["ip"]=fields[0]
+                item["time"]=fields[1]
+                item["content"]=fields[4].split('/')[3]
+                item["size"]=fields[6]
+                item["bitrate"]="{:.2f}".format(float(int(fields[6])*8/((int(fields[3])-int(fields[2]))*1000)))
+                item["result"]=fields[5]
+                if ".ts" in item["content"]:
+                    if channel in logs:
+                        logs[channel].insert(0,item)
+                    else:
+                        logs[channel]=[item]
+            except Exception as e:
+                #traceback.print_exc()
+                pass
+    return render_template('clients.html',logs=logs)
 
 @app.route('/download/<filename>')
 def download(filename):
