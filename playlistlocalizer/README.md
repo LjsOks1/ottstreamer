@@ -1,4 +1,4 @@
-#playlist_localizer
+# playlist_localizer
 
 Simple tool to replace segments marked with the #EXT-X-CUE-OUT-CONT tag in the source manifest file with some local segments. Source manifest is not modified, localized manifest file is created into a different folder. Business logic is compiled in, there is not too much to configure from the command line.
 
