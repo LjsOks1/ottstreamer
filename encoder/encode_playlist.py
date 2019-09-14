@@ -45,7 +45,7 @@ Usage: encode_playlist.py <daily_log> <media_repository> <base_uri>
 <media_repository>: Folder where the original commercials are stored in. 
         <base_uri>: Initial part of the segment URL
 Example:
-./encode_playlist.py /var/www/html/streams/nicktoons_hun/commercials/playlists/2019-09-14/2019-09-14_Nicktoons_Hungary.xls /ddrive/commercials http:129.228.120.86/streams/nicktoons_hun/commercials/playlists
+./encode_playlist.py /var/www/html/streams/nicktoons_hun/commercials/playlists/2019-09-14/2019-09-14_Nicktoons_Hungary.xls /ddrive/commercials http://129.228.120.86/streams/nicktoons_hun/commercials/playlists
 """
     sys.exit()
 
