@@ -10,19 +10,28 @@ typedef struct _CustomData
   GstElement *pipeline;          /* The pipeline */
   GstElement *souphttpsrc;      /* HLS source */
   GstElement *hlsdemux;         /* HLS Demux */
-  GstElement *s1,*s2;           /* Hack to split the HLS buffers into smaller segments */
   GstElement *tsparse;          /* TS parser */
   GstElement *rtpmp2tpay;       /* RTP payer */
   GstElement *queue;            /* Queue element */
   GstElement *udpsink;          /* Sink element */
   GstBus     *bus;              /* Message Bus */
-
   GMainLoop *main_loop;         /* GLib's Main Loop */
   gboolean buffering;
   GstState target_state;
 } CustomData;
 
-/* playbin flags */
+/* Variables parsed from the command line. */
+static gchar *src_manifest="";
+static gchar *dst_multicast="";
+static gchar *tsparse_pad;
+
+static GOptionEntry entries[]=
+{
+    {"src_manifest",'s',0,G_OPTION_ARG_STRING,&src_manifest,"URL for the m3u8 manifest file.",NULL},
+    {"dst_multicast",'d',0,G_OPTION_ARG_STRING,&dst_multicast,"Multicast address in the form of address:port.",NULL},
+    {"tsparse_pad",'p',0,G_OPTION_ARG_STRING,&tsparse_pad,"tsparse source pad to use. Should be in the form of program_id where id is the mpeg program number.",NULL},
+    {NULL}
+};
 
 /* Forward definition for the message and keyboard processing functions */
 static gboolean handle_message (GstBus * bus, GstMessage * msg,
@@ -58,8 +67,6 @@ pad_added_handler(GstElement * src, GstPad * new_pad, CustomData * data)
     }
     else {
         GST_INFO("Link succeeded (type '%s').", new_pad_type);
-        gst_element_link_many(data->s1, data->s2, data->tsparse, NULL);
-
     }
 
 exit:
@@ -88,94 +95,7 @@ event_probe(GstPad *pad, GstPadProbeInfo *info, gpointer user_data) {
     }
     return GST_PAD_PROBE_OK;
 }
-int
-main (int argc, char *argv[])
-{
-  CustomData data;
-  GstStateChangeReturn ret;
-  gboolean res1,res2,res3;
-  GstCaps *caps;
-  
-  /* Initialize GStreamer */
-  gst_init (&argc, &argv);
-  GST_DEBUG_CATEGORY_INIT(ottstreamer, "ottstreamer", 0, "Let's start streaming....");
 
-/* Create the elements */
-    data.pipeline = gst_pipeline_new("ottstreamer");
-    data.souphttpsrc = gst_element_factory_make("souphttpsrc", "souphttpsrc");
-    data.hlsdemux = gst_element_factory_make("hlsdemux", "hlsdemux");
-//    data.s1 = gst_element_factory_make("rtpmp2tpay", NULL);
-//    data.s2 = gst_element_factory_make("rtpmp2tdepay", NULL);
-    data.tsparse = gst_element_factory_make("tsparse", "tsparse");
-    data.rtpmp2tpay = gst_element_factory_make("rtpmp2tpay", "rtpmp2tpay");
-    data.queue = gst_element_factory_make("queue2", "queue2");
-    data.udpsink = gst_element_factory_make("udpsink", "udpsink");
-
-    if (!data.pipeline || !data.souphttpsrc || !data.hlsdemux || //!data.s1 || !data.s2 ||
-        !data.tsparse || !data.rtpmp2tpay || !data.queue || !data.udpsink) {
-        GST_ERROR("Not all elements could be created.");
-        return -1;
-    }
-    /* Build the pipeline */
-    gst_bin_add_many(GST_BIN(data.pipeline), data.souphttpsrc, data.hlsdemux,  data.tsparse,
-        data.rtpmp2tpay, data.queue, data.udpsink, /*data.s1, data.s2,*/ NULL);
-
-    caps = gst_caps_new_simple("video/mpegts", "packetsize", G_TYPE_INT, 188, "systemstream", G_TYPE_BOOLEAN, TRUE, NULL);
-    res1 = gst_element_link(data.souphttpsrc, data.hlsdemux);
-    res3 = gst_element_link_pads_filtered(data.tsparse, "program_100", data.rtpmp2tpay, "sink",caps);
-    res2 = gst_element_link_many(data.rtpmp2tpay, data.queue, data.udpsink, NULL);
-    if ((res1&res2&res3) != TRUE) {
-        GST_ERROR("Elements could not be linked.");
-        gst_object_unref(data.pipeline);
-        return -1;
-    }
-    /* Connect to the pad-added signal */
-    g_signal_connect(data.hlsdemux, "pad-added", G_CALLBACK(pad_added_handler), &data);
-
-    /* Set properties */
-    g_object_set(data.souphttpsrc, "location", argv[1], NULL);
-    g_object_set(data.hlsdemux, "message-forward", TRUE, NULL);
-    //g_object_set(data.s1, "mtu", 100000, NULL);
-    //g_object_set(data.tsparse, "set-timestamps", TRUE, NULL);
-    g_object_set(data.udpsink, "clients", argv[2], NULL);
-    g_object_set(data.udpsink, "qos", FALSE, NULL);
-    g_object_set(data.queue, "max-size-time", 30000000000,NULL);
-    g_object_set(data.queue, "max-size-buffers", 0,NULL);
-    g_object_set(data.queue, "max-size-bytes", 0,NULL);
-    g_object_set(data.queue, "high-watermark", 0.99,NULL);
-    g_object_set(data.queue, "low-watermark",0.01,NULL);
-    g_object_set(data.queue, "use-buffering",TRUE,NULL);
-
-
-
-    /* Add a bus watch, so we get notified when a message arrives */
-    data.bus = gst_element_get_bus(data.pipeline);
-    gst_bus_add_watch(data.bus, (GstBusFunc)handle_message, &data);
-
-    /* Add a probe for monitoring QOS events*/
-    gst_pad_add_probe(gst_element_get_static_pad(data.rtpmp2tpay, "src"), GST_PAD_PROBE_TYPE_EVENT_UPSTREAM, event_probe, &data, NULL);
-
-    /* Start playing */
-    ret = gst_element_set_state(data.pipeline, GST_STATE_PAUSED);
-    data.target_state = GST_STATE_PLAYING;
-    data.buffering = TRUE;
-    if (ret == GST_STATE_CHANGE_FAILURE) {
-        GST_ERROR("Unable to set the pipeline to the playing state.");
-        gst_object_unref(data.pipeline);
-        return -1;
-    }
-
-    /* Create a GLib Main Loop and set it to run */
-    data.main_loop = g_main_loop_new(NULL, FALSE);
-    g_main_loop_run(data.main_loop);
-
-    /* Free resources */
-    g_main_loop_unref(data.main_loop);
-    gst_object_unref(data.bus);
-    gst_element_set_state(data.pipeline, GST_STATE_NULL);
-    gst_object_unref(data.pipeline);
-    return 0;
-}
 
 /* Process messages from GStreamer */
 static gboolean
@@ -227,6 +147,8 @@ handle_message(GstBus * bus, GstMessage * msg, CustomData * data)
                 g_object_get(data->queue, "current-level-time", &buf, NULL);
                 GST_DEBUG("Downloaded segment: %s  Time:%" GST_TIME_FORMAT ", Buffer:%" GST_TIME_FORMAT, 
                     gst_structure_get_string(s, "uri"), GST_TIME_ARGS(dur),GST_TIME_ARGS(buf));
+            } else {
+                GST_DEBUG("Another hlsdemux message:%s",gst_structure_to_string(s));
             }
 
         }
@@ -240,7 +162,7 @@ handle_message(GstBus * bus, GstMessage * msg, CustomData * data)
 
         }
         else {
-            GST_LOG(gst_structure_to_string(s)); 
+            GST_DEBUG(gst_structure_to_string(s)); 
         }
         break;
     }
@@ -255,7 +177,7 @@ handle_message(GstBus * bus, GstMessage * msg, CustomData * data)
     case GST_MESSAGE_BUFFERING: {
         gint percent;
         gst_message_parse_buffering(msg, &percent);
-        if (percent == 100) {
+        if (percent >95 && data->buffering==TRUE) {
             /* a 100% message means buffering is done */
             data->buffering = FALSE;
             /* if the desired state is playing, go back */
@@ -263,7 +185,7 @@ handle_message(GstBus * bus, GstMessage * msg, CustomData * data)
                 gst_element_set_state(data->pipeline, GST_STATE_PLAYING);
             }
         }
-        else {
+        if (percent<5) {
             /* buffering busy */
             if (!data->buffering && data->target_state == GST_STATE_PLAYING) {
                 /* we were not buffering but PLAYING, PAUSE  the pipeline. */
@@ -282,3 +204,98 @@ handle_message(GstBus * bus, GstMessage * msg, CustomData * data)
   /* We want to keep receiving messages */
   return TRUE;
 }
+int
+main (int argc, char *argv[])
+{
+    CustomData data;
+    GError *error=NULL;
+    GOptionContext *context;
+    GstStateChangeReturn ret;
+    gboolean res1,res2,res3;
+    GstCaps *caps;
+
+    context=g_option_context_new(" - Convert a HLS stream to multicast RTP.");
+    g_option_context_add_main_entries(context,entries,NULL);
+    if(argc==1) {
+        g_print(g_option_context_get_help(context,TRUE,NULL));  
+        exit(1);
+    }
+    if(!g_option_context_parse(context,&argc,&argv,&error)) {
+        g_print("Parsing options failed. Error:%s,\n",error->message);
+        exit(1);
+    }
+  /* Initialize GStreamer */
+    gst_init (&argc, &argv);
+    GST_DEBUG_CATEGORY_INIT(ottstreamer, "hls2rtp", 0, "Let's start streaming....");
+
+/* Create the elements */
+    data.pipeline = gst_pipeline_new("hls2rtp");
+    data.souphttpsrc = gst_element_factory_make("souphttpsrc", "souphttpsrc");
+    data.hlsdemux = gst_element_factory_make("hlsdemux", "hlsdemux");
+    data.tsparse = gst_element_factory_make("tsparse", "tsparse");
+    data.rtpmp2tpay = gst_element_factory_make("rtpmp2tpay", "rtpmp2tpay");
+    data.queue = gst_element_factory_make("queue2", "queue2");
+    data.udpsink = gst_element_factory_make("udpsink", "udpsink");
+
+    if (!data.pipeline || !data.souphttpsrc || !data.hlsdemux || 
+        !data.tsparse || !data.rtpmp2tpay || !data.queue || !data.udpsink) {
+        GST_ERROR("Not all elements could be created.");
+        return -1;
+    }
+    /* Build the pipeline */
+    gst_bin_add_many(GST_BIN(data.pipeline), data.souphttpsrc, data.hlsdemux,  data.tsparse,
+        data.rtpmp2tpay, data.queue, data.udpsink,  NULL);
+
+    caps = gst_caps_new_simple("video/mpegts", "packetsize", G_TYPE_INT, 188, "systemstream", G_TYPE_BOOLEAN, TRUE, NULL);
+    res1 = gst_element_link(data.souphttpsrc, data.hlsdemux);
+    res3 = gst_element_link_pads_filtered(data.tsparse, tsparse_pad, data.rtpmp2tpay, "sink",caps);
+    res2 = gst_element_link_many(data.rtpmp2tpay, data.queue, data.udpsink, NULL);
+    if ((res1&res2&res3) != TRUE) {
+        GST_ERROR("Elements could not be linked.");
+        gst_object_unref(data.pipeline);
+        return -1;
+    }
+    /* Connect to the pad-added signal */
+    g_signal_connect(data.hlsdemux, "pad-added", G_CALLBACK(pad_added_handler), &data);
+
+    /* Set properties */
+    g_object_set(data.souphttpsrc, "location", src_manifest, NULL);
+    g_object_set(data.hlsdemux, "message-forward", TRUE, NULL);
+    g_object_set(data.udpsink, "clients", dst_multicast, NULL);
+    g_object_set(data.udpsink, "qos", FALSE, NULL);
+    g_object_set(data.queue, "max-size-time", 30000000000,NULL);
+    g_object_set(data.queue, "max-size-buffers", 0,NULL);
+    g_object_set(data.queue, "max-size-bytes", 0,NULL);
+    g_object_set(data.queue, "high-watermark", 0.99,NULL);
+    g_object_set(data.queue, "low-watermark",0.01,NULL);
+    g_object_set(data.queue, "use-buffering",TRUE,NULL);
+
+    /* Add a bus watch, so we get notified when a message arrives */
+    data.bus = gst_element_get_bus(data.pipeline);
+    gst_bus_add_watch(data.bus, (GstBusFunc)handle_message, &data);
+
+    /* Add a probe for monitoring QOS events*/
+    gst_pad_add_probe(gst_element_get_static_pad(data.rtpmp2tpay, "src"), GST_PAD_PROBE_TYPE_EVENT_UPSTREAM, event_probe, &data, NULL);
+
+    /* Start playing */
+    ret = gst_element_set_state(data.pipeline, GST_STATE_PAUSED);
+    data.target_state = GST_STATE_PLAYING;
+    data.buffering = TRUE;
+    if (ret == GST_STATE_CHANGE_FAILURE) {
+        GST_ERROR("Unable to set the pipeline to the playing state.");
+        gst_object_unref(data.pipeline);
+        return -1;
+    }
+
+    /* Create a GLib Main Loop and set it to run */
+    data.main_loop = g_main_loop_new(NULL, FALSE);
+    g_main_loop_run(data.main_loop);
+
+    /* Free resources */
+    g_main_loop_unref(data.main_loop);
+    gst_object_unref(data.bus);
+    gst_element_set_state(data.pipeline, GST_STATE_NULL);
+    gst_object_unref(data.pipeline);
+    return 0;
+}
+

@@ -5,4 +5,4 @@ webapp/venv/
 *__pycache__*
 *.swp
 *.swx
-
+*/logs/*

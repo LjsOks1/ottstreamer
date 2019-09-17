@@ -74,6 +74,8 @@ def run_encoder(command):
     if not pipeline:
         print "Couldn't create pipeline for break:{}".format(b)
     playlist=m3u8.M3U8()
+    playlist.version="3"
+    playlist.is_endlist=True
     loop=GLib.MainLoop()
     bus=pipeline.get_bus()
     bus.add_signal_watch()
