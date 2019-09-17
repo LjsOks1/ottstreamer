@@ -23,7 +23,7 @@ typedef struct _CustomData
     gchar tsparse_srcpad[20];
     Playlist *playlist;
     gboolean discontinuity;
-    guint cue_out;
+    gint cue_out;
 } CustomData;
 
 /* Variables passed through the command line */
@@ -76,7 +76,6 @@ event_probe(GstPad *pad, GstPadProbeInfo *info, gpointer user_data) {
                         "pts-time", G_TYPE_UINT64, pts + 8 * 90000,
                         "program-number", G_TYPE_UINT, data->program_number, NULL);
                     g_object_set(data->tsparse, "scte35-insert", s, NULL);
-//                    data->discontinuity = TRUE;
                 }
                 return GST_PAD_PROBE_DROP;
             }
@@ -238,7 +237,7 @@ handle_message(GstBus * bus, GstMessage * msg, CustomData * data)
                     data->cue_out=1;
                 }
                 if(gpi==0x92) {
-                    data->cue_out=0;
+                    data->cue_out=-1;
                 }
             }
         } else if (strcmp(GST_MESSAGE_SRC_NAME(msg), "multifilesink") == 0) {
@@ -260,8 +259,8 @@ handle_message(GstBus * bus, GstMessage * msg, CustomData * data)
                 add_segment_to_playlist(data->playlist, pi);
                 render_playlist(data->playlist);
                 data->discontinuity = FALSE;
-                if(data->cue_out==1) {
-                    data->cue_out=2;
+                if(data->cue_out>0) {
+                    data->cue_out++;
                 }
             }
         } else {

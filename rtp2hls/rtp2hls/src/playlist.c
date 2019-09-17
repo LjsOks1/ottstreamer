@@ -31,10 +31,14 @@ render_playlist(Playlist *p) {
             content = g_string_append(content, "#EXT-X-DISCONTINUITY\n");
         }
         if(pi->cue_out==1) {
-            content=g_string_append(content, "#EXT-X-CUE-OUT\n");
+            content=g_string_append(content, "#EXT-X-CUE-OUT:240\n");
         }
-        if(pi->cue_out==2) {
-            content=g_string_append(content, "#EXT-X-CUE-OUT-CONT\n");
+        if(pi->cue_out>1) {
+            g_string_append_printf(content, "#EXT-X-CUE-OUT-CONT:%i/%i\n",(pi->cue_out-1)*15,240);
+        }
+        if(pi->cue_out==-1) {
+            content=g_string_append(content,"#EXT-X-CUE-IN\n");
+            pi->cue_out=0;
         }
     }
     if (!p->is_live) {
@@ -57,7 +61,7 @@ add_segment_to_playlist(Playlist *p, Playlist_Item *i) {
 }
 
 Playlist_Item*
-new_playlist_item(gchar *link, guint duration,gboolean discontinuity,guint cue_out) {
+new_playlist_item(gchar *link, guint duration,gboolean discontinuity,gint cue_out) {
     Playlist_Item *pi;
     pi = g_new(Playlist_Item, 1);
     pi->link = g_strdup(link);

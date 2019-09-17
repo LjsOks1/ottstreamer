@@ -24,7 +24,7 @@ Playlist*
 new_playlist(guint max_items, gboolean is_live, gchar *location);
 
 Playlist_Item*
-new_playlist_item(gchar *link, guint duration, gboolean discontinuity,guint cue_out);
+new_playlist_item(gchar *link, guint duration, gboolean discontinuity,gint cue_out);
 
 gboolean
 add_segment_to_playlist(Playlist *p, Playlist_Item *i);
