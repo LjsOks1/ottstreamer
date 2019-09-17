@@ -1,0 +1,4 @@
+#!/bin/bash
+export GST_DEBUG=3,tsparse:5,adaptivedemux:5,hls2rtp:5
+./hls2rtp -s http://129.228.120.86/streams/nicktoons_hun/nicktoons_hun.m3u8 -d 239.211.8.5:1234 -p program_14 > ../logs/hls2rtp_nicktoons_hun.log 2>&1 &
+
