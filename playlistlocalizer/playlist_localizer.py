@@ -19,7 +19,7 @@ Usage: ./playlist_localizer.py <src_manifest> <dst_manifest> <channel_name> <bre
 <channel_name>: Channel name is in the filename of the XLS playlist.
 <break_number>: Initial commercial break to start with. (Used if the XLS playlist is not found.)
 Example:
-./playlist_localizer.py /var/www/html/streams/nicktoons_live/playlist.m3u8 /var/www/html/streams/nicktoons_hun/nicktoons_hun.m3u8 Nicktoons_Hungary 20 > logs/localizer_nicktoons_hun.log &
+./playlist_localizer.py /var/www/html/streams/nicktoons_live/playlist.m3u8 /var/www/html/streams/nicktoons_hun/nicktoons_hun.m3u8 Nicktoons_Hungary 20 &
 """
     sys.exit()
 
@@ -29,6 +29,9 @@ ch=logging.StreamHandler(sys.stdout)
 ch_formatter=logging.Formatter("%(asctime)s - %(message)s")
 ch.setFormatter(ch_formatter)
 logger.addHandler(ch)
+fh=logging.FileHandler("logs/localizer_"+sys.argv[3]+".log")
+fh.setFormatter(ch_formatter)
+logger.addHandler(fh)
 
 class M3U8Watcher:
     def __init__(self, src_path,dst_path,channel_name,break_number):
@@ -78,7 +81,7 @@ class M3U8Watcher:
                         logger.debug("Playlist duration:%isec",playlist_duration.total_seconds())
                         if self.local_window==False and s.discontinuity==True and s.cue_out==True:
                             #Start of a local window. Replace segments with local commercials.
-                            broadcast_date=(datetime.datetime.now()-datetime.timedelta(hours=-6)).strftime('%Y-%m-%d')
+                            broadcast_date=(datetime.datetime.now()-datetime.timedelta(hours=6)).strftime('%Y-%m-%d')
                             if broadcast_date != self.__broadcast_date:
                                 self.__broadcast_date=broadcast_date
                                 self.__break_number=1
@@ -105,7 +108,7 @@ class M3U8Watcher:
                                     cs.program_date_time=commercial_time
                                     self.local_playlist.add_segment(cs)
                                     logger.debug("Segment to local playlist:\n{}".format(cs))
-                                self.local_window==True
+                                self.local_window=True
                             except Exception:
                                 logger.exception("Couldn't parse local manifest file. Keeping regional segments.")
                             self.__break_number+=1
@@ -137,5 +140,6 @@ if __name__ == "__main__":
     dst_path = sys.argv[2] 
     channel_name= sys.argv[3] 
     break_number = sys.argv[4] 
+    logger.debug("Application started with command line {}".format(' '.join(sys.argv[1:])))
     M3U8Watcher(src_path,dst_path,channel_name,break_number).run()
 
