@@ -1,0 +1,2 @@
+export GST_DEBUG=3,tsparse:5,rtp2hls:5
+./rtp2hls -s udp://239.211.8.127:1234 -b /var/www/html/streams -c nicktoons_live -p 14 -u http://129.228.120.86/streams -l 8 -n segment_%05d.ts > ../../logs/rtp2hls_nicktoons_live.log 2>&1 &
