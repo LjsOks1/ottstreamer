@@ -26,7 +26,6 @@ render_playlist(Playlist *p) {
         content=g_string_append(content,g_date_time_format(pi->timestamp,"%Y-%m-%dT%H:%M:%S%:z"));
         content=g_string_append(content,"\n");
         content = g_string_append(content, "#EXTINF:15.000,\n");
-        g_string_append_printf(content,"%s\n", pi->link);
         if (pi->discontinuity == TRUE) {
             content = g_string_append(content, "#EXT-X-DISCONTINUITY\n");
         }
@@ -40,6 +39,7 @@ render_playlist(Playlist *p) {
             content=g_string_append(content,"#EXT-X-CUE-IN\n");
             pi->cue_out=0;
         }
+        g_string_append_printf(content,"%s\n", pi->link);
     }
     if (!p->is_live) {
         content = g_string_append(content, "#EXT-X-ENDLIST\n");
