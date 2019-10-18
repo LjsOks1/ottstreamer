@@ -6,6 +6,7 @@ import gi
 import m3u8
 gi.require_version('Gst','1.0')
 from gi.repository import GObject,Gst,GLib
+import fnmatch
 
 Gst.init(None)
 
@@ -101,8 +102,17 @@ if __name__=="__main__":
     #Check for missing Cart Numbers
     print "Missing commercials:"
     missing=0
+    matches = []
+    for root, dirnames, filenames in os.walk(media_repository):
+        for filename in fnmatch.filter(filenames, "*.mxf"):
+            matches.append(os.path.join(root, filename))
+    medias={}
     for c in df["Cart Number"].unique():
-        if not os.path.isfile(os.path.join(media_repository,c+".mxf")):
+        for m in matches:
+            if c in m.decode('utf-8'):
+                medias[c]=m
+                break
+        if c not in medias:
             print "{} is missing".format(c)
             missing+=1
     print "---------------------------------"
@@ -115,11 +125,12 @@ if __name__=="__main__":
         files=""
         command=""
         for i, c in enumerate(df[df['Break Number']==b]["Cart Number"]):
-            files+= command_body.format(os.path.join(media_repository,c+".mxf"),i)
+            files+= command_body.format('"'+medias[c]+'"',i)
         segment_path=os.path.join(destination_path,"brk_{:02d}".format(b))
         command=command_header+files+command_footer.format(os.path.join(segment_path,"segment_%05d.ts"))
         if not os.path.exists(segment_path):
             os.makedirs(segment_path)
         print "converting break:{}".format(b)
         run_encoder(command)
+
 
