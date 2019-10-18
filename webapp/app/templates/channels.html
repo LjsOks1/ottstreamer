@@ -4,32 +4,74 @@
 {% block app_content %}
 
     <div class="card text-white bg-dark mb-3">
-        <p class="lead"> List of available channels:</p>
+        <p class="lead"> List of available mother feeds:</p>
         <table class="table table-dark">
             <thead><tr>
                 <th scope="col">pid</th>
                 <th scope="col">Channel</th>
                 <th scope="col">Source IP</th>
                 <th scope="col">HLS link</th>
+                <th scope="col">Manifest Age</th>
+                <th scope="col">Uptime</th>
                 <th scope="col">Actions</th>
             </tr></thead>
             <tbody>
                {% for grabber in grabbers %}
-                {% for key,value in grabber.items() %}
                     <tr>
-                        <th>{{key}}</th>
-                        <td>{{value[3]}}</td>
-                        <td>{{value[2]}}</td>
-                        <td>{{value[5]}}/{{value[3]}}/playlist.m3u8</td>
+                        <th>{{grabber["pid"]}}</th>
+                        <td>{{grabber["channel"]}}</td>
+                        <td>{{grabber["source"]}}</td>
+                        <td><a href="{{grabber["baseuri"]}}/{{grabber["channel"]}}/playlist.m3u8">
+                            {{grabber["baseuri"]}}/{{grabber["channel"]}}/playlist.m3u8</a></td>
+                        <td>{{grabber["manifest_age"]}}</td>
+                        <td>{{grabber["uptime"]}}</td>
                         <td>
-                            <a href="channels?action=stop&pid={{key}}">Stop</a>
+                            <a href="channels?action=stop&pid={{grabber['pid']}}">Stop</a>
                         </td>
                     </tr>
-                {%endfor%}
                {%endfor%}
             </tbody>
         </table>
-        <button type="button" class="btn btn-secondary btn-lg"  data-toggle="modal" data-target="#myModal">Add new channel</button>
+        <button type="button" class="btn btn-secondary btn-lg"  data-toggle="modal" data-target="#myModal">Add mother feed</button>
+        <!-- Modal -->
+        <div class="modal fade" id="myModal" tabindex="-1" role="dialog" aria-labelledby="myModalLabel">
+          <div class="modal-dialog" role="document">
+            <div class="modal-content">
+               {{wtf.quick_form(form)}}
+            </div>
+          </div>
+        </div>
+    </div>
+
+    <div class="card text-white bg-dark mb-3">
+        <p class="lead"> List of localized feeds:</p>
+        <table class="table table-dark">
+            <thead><tr>
+                <th scope="col">pid</th>
+                <th scope="col">Channel</th>
+                <th scope="col">Source Manifest</th>
+                <th scope="col">Manifest Age</th> 
+                <th scope="col">Multicast IP</th>
+                <th scope="col">Uptime</th>
+                <th scope="col">Actions</th>
+            </tr></thead>
+            <tbody>
+               {% for h in hls2rtp %}
+                    <tr>
+                        <th>{{h["pid"]}}</th>
+                        <td>{{h["channel"]}}</td>
+                        <td>{{h["source"]}}</td>
+                        <td>{{h["manifest_age"]}}</td>
+                        <td>{{h["multicast"]}}</td>
+                        <td>{{h["uptime"]}}</td>
+                        <td>
+                            <a href="channels?action=stop&pid={{h['pid']}}">Stop</a>
+                        </td>
+                    </tr>
+               {%endfor%}
+            </tbody>
+        </table>
+        <button type="button" class="btn btn-secondary btn-lg"  data-toggle="modal" data-target="#myModa2">Add mother feed</button>
         <!-- Modal -->
         <div class="modal fade" id="myModal" tabindex="-1" role="dialog" aria-labelledby="myModalLabel">
           <div class="modal-dialog" role="document">
@@ -39,4 +81,5 @@
           </div>
         </div>
     </div>
+
 {% endblock %}

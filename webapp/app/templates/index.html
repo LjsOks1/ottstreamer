@@ -1,20 +1,8 @@
 {% extends "base.html" %}
 
 {% block app_content %}
-    <div class="jumbotron text-light bg-dark">
-        <h1 class="display-4">Emergency streaming site</h1>
-        <hr class="my-4 border-light">
-        <p class="lead">Please download and install the below app to receive an emergency stream.</p>  
-        <br>1. Best to keep the default installation folder at c:\hls2rtp
-        <br>2. Start a DOS prompt, enter into the installation folder and run:
-        <br><code>set GST_DEBUG=ottstreamer:5</code>
-        <br><code>hls2rtp.exe hls-link muticastip:port</code>
-        <br>3. Availabe HLS streams are <a href=/channels>here.</a> Feel free to start a new stream if you don't find yours.
-        <br>4. Destination multicast\unicast  address is your choice.
-        <br>5. If need help, email to: okos.lajos@vimn.com
-        </p>
-        <p><a class="btn btn-primary btn-lg" href="{{url_for('download',filename='Setup.msi')}}" role="button">Download app</a></p>
-    </div>
-
-
+<video width="320" height="240" controls>
+  <source src="rtsp://129.228.120.31:8554/test" type="video/rtsp">
+Your browser does not support the video tag.
+</video>
 {% endblock %}

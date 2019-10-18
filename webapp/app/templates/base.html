@@ -1,5 +1,13 @@
 {% extends 'bootstrap/base.html' %}
 
+{%block styles%}
+{{super()}}
+    <link rel="stylesheet" href="https://use.fontawesome.com/releases/v5.7.0/css/all.css" 
+        integrity="sha384-lZN37f5QGtY3VHgisS14W3ExzMWZxybE1SJSEsQp9S+oqd12jhcu+A56Ebc1zFSJ" 
+            crossorigin="anonymous">
+{%endblock%}
+
+
 {% block title %}
     Emergency streaming site
 {% endblock %}
@@ -12,10 +20,32 @@
         <div class="collapse navbar-collapse" id="navbarSupportedContent">
             <ul class="navbar-nav mr-auto">
                 <li class="nav-item active">
-                    <a class="nav-link" href="channels">Channels</a>
+                    <a class="nav-link" href="channels">Processes</a>
                 </li>
                 <li class="nav-item">
-                    <a class="nav-link" href="clients">Clients</a>
+                    <a class="nav-link" href="clients">Localized feeds</a>
+                </li>
+                <li class="nav-item">
+                    <a class="nav-link" href="logs">Commercial logs</a>
+                </li>
+                <li class="nav-item dropdown">
+                    <a class="nav-link dropdown-toggle" data-toggle="dropdown" href="#" role="button" aria-haspopup="true" aria-expanded="false">Asruns</a>
+                    <div class="dropdown-menu">
+                      <a class="dropdown-item" href="asrun?channel=nick_bul">Nickelodeon Bulgaria</a>
+                      <a class="dropdown-item" href="asrun?channel=nick_cze">Nickelodeon Czech</a>
+                      <a class="dropdown-item" href="asrun?channel=nick_hun">Nickelodeon Hungary</a>
+                      <a class="dropdown-item" href="asrun?channel=nick_rom">Nickelodeon Romania</a>
+                      <div class="dropdown-divider"></div>
+                      <a class="dropdown-item" href="asrun?channel=nickjr_bul">NickJR Bulgaria</a>
+                      <a class="dropdown-item" href="asrun?channel=nickjr_cze">NickJR Czech</a>
+                      <a class="dropdown-item" href="asrun?channel=nickjr_hun">NickJR Hungary</a>
+                      <a class="dropdown-item" href="asrun?channel=nickjr_rom">NickJR Romania</a>
+                      <div class="dropdown-divider"></div>
+                      <a class="dropdown-item" href="asrun?channel=nicktoons_bul">Nicktoons Bulgaria</a>
+                      <a class="dropdown-item" href="asrun?channel=nicktoons_cze">Nicktoons Czech</a>
+                      <a class="dropdown-item" href="asrun?channel=nicktoons_hun">Nicktoons Hungary</a>
+                      <a class="dropdown-item" href="asrun?channel=nicktoons_rom">Nicktoons Romania</a>
+                   </div>
                 </li>
             </ul>
         </div>

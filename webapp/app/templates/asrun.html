@@ -1,0 +1,32 @@
+{% extends "base.html" %}
+{% import 'bootstrap/wtf.html' as wtf %}
+
+{% block app_content %}
+
+    <div class="jumbotron text-white bg-dark mb-3">
+        <h1 class="display-4">Asrun log: {{channel}} - {{txdate}}  </h1>
+         <hr class="my-4 border-white">
+              {% for line in asrun_log %}
+                {{line}}</br>
+              {%endfor%}
+        <p></p>
+        <h1 class="display-4">Discrepencies  </h1>
+        <hr class="my-4 border-white">
+        <p class="lead"><u>Slow downloads: </u></p>
+              {% for line in slow_downloads %}
+                {{line}}</br>
+              {%endfor%}
+         <p></p>
+         <p class="lead"><u>Long gaps between downloads: </u></p>
+              {% for line in long_gaps %}
+                {{line}}</br>
+              {%endfor%}
+         <p></p>
+         <p class="lead"><u>Bad buffers from tsparse: </u></p>
+              {% for line in bad_packets %}
+                {{line}}</br> 
+              {%endfor%}
+        
+    </div>
+
+{% endblock %}

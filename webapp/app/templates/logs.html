@@ -1,0 +1,197 @@
+{% extends "base.html" %}
+{% import 'bootstrap/wtf.html' as wtf %}
+
+{% block scripts %}
+    {{ super() }}
+    <script>
+        $('#missingmedia').on('show.bs.modal', function (event) {
+            var button = $(event.relatedTarget) // Button that triggered the modal
+            var missing_list = button.data('missing') // Extract info from data-* attributes
+            var channel=button.data('channel')
+            var txdate=button.data('date')
+            // If necessary, you could initiate an AJAX request here (and then do the updating in a callback).
+            // Update the modal's content. We'll use jQuery here, but you could use a data binding library or other methods instead.
+            var modal = $(this)
+            modal.find('.modal-title').text('Missing commercials: '.concat(channel,' - ',txdate))
+            modal.find('.modal-body').text(missing_list)
+            modal.find('.modal-footer #channel').val(channel)
+            modal.find('.modal-footer #txdate').val(txdate)
+            modal.find('.modal-footer #formname').val('missingform')
+        })        
+         $('#playlist').on('show.bs.modal', function (event) {
+            var button = $(event.relatedTarget) // Button that triggered the modal
+            var channel=button.data('channel')
+            var txdate=button.data('date')
+            // If necessary, you could initiate an AJAX request here (and then do the updating in a callback).
+            // Update the modal's content. We'll use jQuery here, but you could use a data binding library or other methods instead.
+            var modal = $(this)
+            modal.find('.modal-body').text("Reload schedule for ".concat(channel," - ",txdate ))
+            modal.find('.modal-footer #channel').val(channel)
+            modal.find('.modal-footer #txdate').val(txdate)
+            modal.find('.modal-footer #formname').val('playlistform')
+        })        
+          $('#commbreak').on('show.bs.modal', function (event) {
+            var button = $(event.relatedTarget) // Button that triggered the modal
+            var channel=button.data('channel')
+            var txdate=button.data('date')
+            // If necessary, you could initiate an AJAX request here (and then do the updating in a callback).
+            // Update the modal's content. We'll use jQuery here, but you could use a data binding library or other methods instead.
+            var modal = $(this)
+            modal.find('.modal-body').text("Encode commercial breaks for ".concat(channel," - ",txdate ))
+            modal.find('.modal-footer #channel').val(channel)
+            modal.find('.modal-footer #txdate').val(txdate)
+            modal.find('.modal-footer #formname').val('commbreak')
+        })        
+  </script>
+{% endblock %}
+
+{% block styles %}
+{{super()}}
+    <link rel="stylesheet" href="{{url_for('static',filename='css/mystyle.css')}}">
+{% endblock %}
+
+{% block app_content %}
+    <div class="card text-white bg-dark mb-3">
+        <p class="lead"> Log upload overview {{key}}</p>
+        <table class="table table-dark table-sm">
+            <thead><tr>
+               <th text-align="center" scope="col">Channel name</th>
+               {% for d in dates %}
+                    <th text-align="center" scope="col">{{d}}</th>
+                {%endfor%}
+            </tr></thead>
+            <tbody>
+                {% for key,value in channels.items() %}
+                    <tr>
+                        <td align="right">{{key}}</td>
+                        {% for v in value %} 
+                            <td align="center">
+                            <div class="btn-group">
+                            <button type="button" class="btn btn-sm btn-link slim" data-toggle="modal" 
+                                data-target="#playlist" 
+                                data-channel="{{key}}"
+                                data-date={{dates[loop.index-1]}}>
+                           {% if v["xls"]==True %}
+                                <i class="fa fa-list" style="color:green"></i>
+                            {%else%}
+                                <i class="fa fa-list" style="color:red"></i>
+                            {%endif%}
+                            </button>
+                            <button type="button" class="btn btn-sm btn-link slim" data-toggle="modal" 
+                                data-target="#missingmedia" 
+                                data-missing="{{', '.join(v["missing"])|safe}}"
+                                data-channel="{{key}}"
+                                data-date={{dates[loop.index-1]}}>
+                        
+                            {%if v["missing"] is defined and not v["missing"]|length%}
+                                <span class="fa-stack">
+                                <i class="fa fa-database" style="color:green"></i>
+                                </span>
+                            {%else%}
+                                <span class="fa-stack ">
+                                 <i class="fa fa-database fa-stack" style="color:red"></i>
+                                 {%if v["missing"]%}
+                                   <strong class="fa-stack-1x calendar-text" style="color:white">{{v["missing"]|length}}</strong>
+                                 {%endif%}
+                                </span>
+                            {%endif%}
+                            </button>
+                             <button type="button" class="btn btn-sm btn-link slim" data-toggle="modal" 
+                                data-target="#commbreak" 
+                                data-channel="{{key}}"
+                                data-date={{dates[loop.index-1]}}>
+                            {%if v["ts_ready"]==True %}
+                                <i class="fa fa-film" style="color:green"></i>
+                            {%else%}
+                                 <i class="fa fa-film" style="color:red"></i>
+                            {%endif%}
+                            </button>
+                            </div>
+                           </td>
+                       {%endfor%}
+                    </tr>
+                {%endfor%}
+            </tbody>
+        </table>
+    </div>
+
+ <!-- Modal -->
+  <div class="modal fade" id="playlist" role="dialog">
+    <div class="modal-dialog modal-lg">
+      <!-- Modal content-->
+      <div class="modal-content">
+        <div class="modal-header">
+          <h4 class="modal-title">Reload playlist</h4>
+        </div>
+        <div class="modal-body">
+          <p>ABC23474</p>
+        </div>
+        <div class="modal-footer">
+            <form action="" method="post" novalidate>
+                {{ playlistform.hidden_tag() }}
+                <p>
+                {{ playlistform.channel() }}
+                {{ playlistform.txdate()}}
+                </p>
+                <p>{{ playlistform.submit() }}</p>
+            </form>
+          <button type="button" class="btn btn-secondary" data-dismiss="modal">Close</button>
+        </div>
+      </div>
+
+    </div>
+  </div>
+ <!-- Modal -->
+  <div class="modal fade" id="missingmedia" role="dialog">
+    <div class="modal-dialog modal-lg">
+      <!-- Modal content-->
+      <div class="modal-content">
+        <div class="modal-header">
+          <h4 class="modal-title">Missing commercials</h4>
+        </div>
+        <div class="modal-body">
+          <p>ABC23474</p>
+        </div>
+        <div class="modal-footer">
+            <form action="" method="post" novalidate>
+                {{ missingform.hidden_tag() }}
+                <p>
+                {{ missingform.channel() }}
+                {{ missingform.txdate()}}
+                </p>
+                <p>{{ missingform.submit() }}</p>
+            </form>
+          <button type="button" class="btn btn-secondary" data-dismiss="modal">Close</button>
+        </div>
+      </div>
+
+    </div>
+  </div>
+
+  <div class="modal fade" id="commbreak" role="dialog">
+    <div class="modal-dialog modal-lg">
+      <!-- Modal content-->
+      <div class="modal-content">
+        <div class="modal-header">
+          <h4 class="modal-title">Encode commercial breaks...</h4>
+        </div>
+        <div class="modal-body">
+          <p>ABC23474</p>
+        </div>
+        <div class="modal-footer">
+            <form action="" method="post" novalidate>
+                {{ playlistform.hidden_tag() }}
+                <p>
+                {{ playlistform.channel() }}
+                {{ playlistform.txdate()}}
+                </p>
+                <p>{{ playlistform.submit() }}</p>
+            </form>
+          <button type="button" class="btn btn-secondary" data-dismiss="modal">Close</button>
+        </div>
+      </div>
+
+    </div>
+  </div>
+
+{% endblock %}
