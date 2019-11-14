@@ -1,0 +1,2 @@
+export GST_DEBUG=3,mpegtsmux=3,tsdemux=3,tsparse:5
+./legal_recorder.py /ddrive/legalrecording/multiview/ http://129.228.120.31/legalrecording >> logs/recorder.log 2>&1 & 
