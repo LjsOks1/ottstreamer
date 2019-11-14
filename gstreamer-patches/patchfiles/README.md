@@ -11,8 +11,7 @@ Install all the gstreamer modules we need.
 Add the dev package for the base plugins.
 '''sudo apt-get install libgstreamer-plugins-base1.0-dev'''
 
-
-********* gst-plugin-bad *****************<br/>
+********* gst-plugin-bad *****************
 
 '''git clone https://github.com/GStreamer/gst-plugins-bad.git
 cd gst-plugins-bad
@@ -27,12 +26,13 @@ git clone https://github.com/LjsOks1/ottstreamer.git
 cp ottstreamer/gstreamer-patches/patchfiles/gst-plugins-bad-1.14.4.patch gst-plugins-bad'''
 
 Go back to the root of gst-plugins-bad, check if patch applies without error.
-patch -p 1 --dry-run < gst-plugins-bad-1.14.4.patch
+'''patch -p 1 --dry-run < gst-plugins-bad-1.14.4.patch'''
 
 If looks good, apply the patch.
-patch -p 1 < gst-plugins-bad-1.14.4.patch
+'''patch -p 1 < gst-plugins-bad-1.14.4.patch'''
 
-cd gst-lib/gst/mpegts
+Than compile and install the modules...
+'''cd gst-lib/gst/mpegts
 make
 sudo cp .libs/libgstmpegts-1.0.so.0 /usr/lib/x86_64-linux-gnu/
 cd gst-libs/gst/codecparsers
@@ -43,7 +43,7 @@ make
 sudo cp .libs/libgstmpegtsmux.so /usr/lib/x86_64-linux-gnu/gstreamer-1.0/
 cd gst/mpegtsdemux
 make
- sudo cp .libs/libgstmpegtsdemux.so /usr/lib/x86_64-linux-gnu/gstreamer-1.0/
+ sudo cp .libs/libgstmpegtsdemux.so /usr/lib/x86_64-linux-gnu/gstreamer-1.0/'''
 
  ********* gst-plugin-good *****************
 
