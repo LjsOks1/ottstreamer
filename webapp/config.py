@@ -12,8 +12,11 @@ class Config(object):
         ]
     BASE_URI="http://129.228.120.86/streams"
     UPLOAD_FOLDER='/home/lajos/projects/ottstreamer/webapp/'
+    LOCALIZER_ROOT='/ddrive/ottstreamer/playlistlocalizer'
     MEDIA_FOLDER="/mnt/operations/Operations/"
     CACHE_FOLDER="/ddrive/commercials"
+    TEST_FOLDER="/ddrive/streams/test"
+    TEST_URL="http://129.228.120.86/streams/test/"
     LOCALIZED_FEEDS=[
         {"name":"Nick Hungary",
          "log":"nickelodeon_HUN",
@@ -50,17 +53,17 @@ class Config(object):
         {"name":"Nicktoons Hungary",
          "log":"Nicktoons_Hungary",
          "dir":"nicktoons_hun",
-         "xls":"/mnt/fs_operations/12_Nicktoons/Nicktoons\040HU\040Schedule"},
+         "xls":"/mnt/fs_operations/12\040Nicktoons/Nicktoons\040HU\040Schedule"},
         {"name":"Nicktoons Romania",
          "log":"nicktoonsro",
          "dir":"nicktoons_rom",
-         "xls":"/mnt/fs_operations/12_Nicktoons/Nicktoons\040RO_\040Schedule/Schedule"},
+         "xls":"/mnt/fs_operations/12\040Nicktoons/Nicktoons\040RO\040Schedule/Schedule"},
         {"name":"Nicktoons Czech",
-         "log":"Nicktoons_Czech",
+         "log":"nicktoonscz",
          "dir":"nicktoons_cze",
-         "xls":"/mnt/fs_operations/12_Nicktoons/Nicktoons\040Czech/Schedule"},
+         "xls":"/mnt/fs_operations/12\040Nicktoons/Nicktoons\040CZ\040Schedule"},
         {"name":"Nicktoons Bulgaria",
          "log":"Nicktoons_Bulgaria",
          "dir":"nicktoons_bul",
-         "xls":"/mnt/fs_operations/12_Nicktoons/Nicktoons\040BG\040Schedule"}]
+         "xls":"/mnt/fs_operations/12\040Nicktoons/Nicktoons\040BG\040Schedule"}]
 

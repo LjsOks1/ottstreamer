@@ -12,13 +12,25 @@ import pandas
 import xlrd
 from utils import check_for_missing_media as cmm
 from utils import reload_playlist as rp
-from utils import encode_nicktoons as ent 
-from utils.asrun import get_commercial_log,get_segments_played
+from utils import encode_commercials as ent 
+from utils.asrun import get_commercial_log,get_segments_played,get_timeline
+from utils.asrun import get_test_playlist
+from flask import jsonify
+from utils.encode_commercials import encoder_log
 
 @app.route('/')
 @app.route('/index')
 def index():
-    return render_template('index.html')
+    if "date" in request.args:
+        req_date=request.args.get("date")
+    else:
+        req_date=datetime.datetime.now().strftime("%Y-%m-%d")
+    try:
+        timeline=get_timeline(req_date)
+    except FileNotFoundError:
+        flash("Playlist files missing.")
+        timeline=""
+    return render_template('index.html',timeline=timeline,req_date=req_date)
 
 @app.route('/channels',methods=['GET'])
 def channels():
@@ -160,9 +172,13 @@ def logs_request():
         else:
             flash('Playlist reload failed for {} - {}. check the logs.'.format(data["channel"],data["txdate"]),'error')
     if data["formname"]=="commbreak":
-        job=app.encode_queue.enqueue(ent.encode_nicktoons,data["channel"],data["txdate"])
+        job=app.encode_queue.enqueue(ent.encode_playlist,data["channel"],data["txdate"])
         app.logger.info("Encoding of channel {} for date {} queued.".format(data["channel"],data["txdate"]))
     return redirect('logs')
+
+@app.route('/encoderlog',methods=['POST'])
+def encoderlog():
+    return jsonify({'text':encoder_log(request.form['channel'],request.form['txdate'])})
 
 @app.route('/asrun')
 def asrun():
@@ -177,8 +193,8 @@ def asrun():
             com_fragments=[]
             for segment in brk["segments"]:
                 com_fragments.append([a["url"] for a in ar].index(segment))
-            asrun_log.append('Break {} scheduled for {} is played at {} with duration:{}.'.
-                  format(brk["id"],brk["starttime"],ar[com_fragments[0]]["start_wallclock"].strftime('%H:%M:%S'),
+            asrun_log.append('<a onclick="dump_m3u8({})" href=#>Break {}</a> scheduled for {} is played at {} with duration:{}.'.
+                  format(brk["id"],brk["id"],brk["starttime"],ar[com_fragments[0]]["start_wallclock"].strftime('%H:%M:%S'),
                         (ar[com_fragments[-1]]["end_wallclock"]-ar[com_fragments[0]]["start_wallclock"])))
         except:
             asrun_log.append('Break {} scheduled for {} is not played.'.format(brk["id"],brk["starttime"]))    
@@ -195,8 +211,11 @@ def asrun():
         bad_packets.append("{}: tsparse sent packet with long duration:{}sec.".format(a["wallclock"].strftime("%Y-%m-%d %H:%M:%S"),a["Duration"].total_seconds()))
 
 
-    return render_template('asrun.html',asrun_log=asrun_log,channel=channel_name,txdate=txdate,slow_downloads=slow_downloads,long_gaps=long_gaps,bad_packets=bad_packets)
+    return render_template('asrun.html',asrun_log=asrun_log,channel_name=channel_name,channel=channel,txdate=txdate,slow_downloads=slow_downloads,long_gaps=long_gaps,bad_packets=bad_packets)
 
+@app.route('/createm3u8',methods=['POST'])
+def createm3u8():
+    return jsonify({'uri':get_test_playlist(request.form["channel"],request.form["brkid"])})
 
 @app.route('/download/<filename>')
 def download(filename):

@@ -9,6 +9,7 @@ import fnmatch
 from config import Config
 import logging
 from logging import FileHandler
+import re
 
 command_header={}
 command_body={}
@@ -18,7 +19,7 @@ command_footer={}
 command_header["Nicktoons"]="""
 concat name=c_v adjust-base=false 
 concat name=c_a1 adjust-base=false 
-mpegtsmux name=mux prog-map=program_map,PCR_14=sink_2141,sink_2141=14,sink_2142=14,sink_2143=14,sink_2144=14,sink_2145=14,sink_2149=14,PMT_14=1038 
+mpegtsmux name=mux prog-map=program_map,PCR_14=sink_2141,sink_2141=14,sink_2142=14,sink_2143=14,sink_2144=14,sink_2145=14,sink_2146=14,sink_2149=14,PMT_14=1038 
 multiqueue name=q max-size-buffers=23 max-size-bytes=0 max-size-time=0 sync-by-running-time=TRUE 
 streamsynchronizer name=sync 
 """
@@ -28,13 +29,15 @@ command_body["Nicktoons"]="""filesrc location={0} ! decodebin name=d{1} d{1}. ! 
 
 command_footer["Nicktoons"]="""
 c_v. ! sync. sync. ! videoconvert ! videoscale ! video/x-raw,width=1920,height=1080 ! identity single-segment=true silent=false ! 
-  nvh264enc gop-size=12 bitrate=4096 rc-mode=2 preset=1 ! video/x-h264,profile=high ! h264parse ! q.sink_1 q.src_1 ! mux.sink_2141 
-c_a1. ! sync. sync. ! audioconvert ! audio/x-raw,channels=2 ! audioresample ! identity single-segment=true ! tee name=t 
-  t.src_0 ! avenc_mp2 bitrate=256000 ! mpegaudioparse !  q.sink_2 q.src_2 ! mux.sink_2142 
-  t.src_1 ! avenc_mp2 bitrate=256000 ! mpegaudioparse !  q.sink_3 q.src_3 ! mux.sink_2143 
-  t.src_2 ! avenc_mp2 bitrate=256000 ! mpegaudioparse !  q.sink_4 q.src_4 ! mux.sink_2144 
-  t.src_3 ! avenc_mp2 bitrate=256000 ! mpegaudioparse !  q.sink_5 q.src_5 ! mux.sink_2145 
-fakesrc num-buffers=1 sizetype=2 sizemax=5 ! application/x-teletext ! q.sink_6 q.sink_6 ! mux.sink_2149 
+  nvh264enc gop-size=12 bitrate=4096 rc-mode=2 preset=1 ! video/x-h264,profile=high ! h264parse config-interval=-1 ! q.sink_1 q.src_1 ! mux.sink_2141 
+c_a1. ! sync. sync. ! audioconvert ! audioresample ! audio/x-raw,channels=2,rate=24000 ! identity single-segment=true ! 
+twolamemp2enc bitrate=128 ! mpegaudioparse ! tee name=t 
+  t.src_0 !  q.sink_2 q.src_2 ! mux.sink_2142 
+  t.src_1 !  q.sink_3 q.src_3 ! mux.sink_2143 
+  t.src_2 !  q.sink_4 q.src_4 ! mux.sink_2144 
+  t.src_3 !  q.sink_5 q.src_5 ! mux.sink_2145 
+  t.src_4 !  q.sink_6 q.src_6 ! mux.sink_2146 
+fakesrc num-buffers=1 sizetype=2 sizemax=5 ! application/x-teletext ! q.sink_7 q.src_7 ! identity ! mux.sink_2149 
 mux.src ! tsparse parse-private-sections=true name=p p.program_14 ! 
 multifilesink location={} 
   next-file=3 max-files=0 max-file-size=0 post-messages=true
@@ -55,15 +58,16 @@ command_body["NickJR"]="""filesrc location={0} ! decodebin name=d{1} d{1}. ! que
 
 command_footer["NickJR"]="""
 c_v. ! sync. sync. ! videoconvert ! videoscale ! video/x-raw,width=720,height=576 ! identity single-segment=true silent=false ! 
-  nvh264enc gop-size=12 bitrate=3096 rc-mode=2 preset=1 ! video/x-h264,profile=high ! h264parse ! q.sink_1 q.src_1 ! mux.sink_1131 
-c_a1. ! sync. sync. ! audioconvert ! audio/x-raw,channels=2 ! audioresample ! identity single-segment=true ! tee name=t 
-  t.src_0 ! avenc_mp2 bitrate=256000 ! mpegaudioparse !  q.sink_2 q.src_2 ! mux.sink_1132 
-  t.src_1 ! avenc_mp2 bitrate=256000 ! mpegaudioparse !  q.sink_3 q.src_3 ! mux.sink_1133 
-  t.src_2 ! avenc_mp2 bitrate=256000 ! mpegaudioparse !  q.sink_4 q.src_4 ! mux.sink_1134 
-  t.src_3 ! avenc_mp2 bitrate=256000 ! mpegaudioparse !  q.sink_5 q.src_5 ! mux.sink_1135 
-  t.src_4 ! avenc_mp2 bitrate=256000 ! mpegaudioparse !  q.sink_6 q.src_6 ! mux.sink_1136 
-  t.src_5 ! avenc_mp2 bitrate=256000 ! mpegaudioparse !  q.sink_7 q.src_7 ! mux.sink_1137 
-fakesrc num-buffers=1 sizetype=2 sizemax=5 ! application/x-teletext ! q.sink_8 q.sink_8 ! mux.sink_1139 
+  nvh264enc gop-size=12 bitrate=3096 rc-mode=2 preset=1 ! video/x-h264,profile=high ! h264parse config-interval=-1 ! q.sink_1 q.src_1 ! mux.sink_1131 
+c_a1. ! sync. sync. ! audioconvert ! audioresample ! audio/x-raw,channels=2,rate=24000 ! identity single-segment=true ! 
+twolamemp2enc bitrate=128 ! mpegaudioparse ! tee name=t  
+  t.src_0 !  q.sink_2 q.src_2 ! mux.sink_1132 
+  t.src_1 !  q.sink_3 q.src_3 ! mux.sink_1133 
+  t.src_2 !  q.sink_4 q.src_4 ! mux.sink_1134 
+  t.src_3 !  q.sink_5 q.src_5 ! mux.sink_1135 
+  t.src_4 !  q.sink_6 q.src_6 ! mux.sink_1136 
+  t.src_5 !  q.sink_7 q.src_7 ! mux.sink_1137 
+fakesrc num-buffers=1 sizetype=2 sizemax=5 ! application/x-teletext ! q.sink_8 q.src_8 ! mux.sink_1139 
 mux.src ! tsparse parse-private-sections=true name=p p.program_3 ! 
 multifilesink location={} 
   next-file=3 max-files=0 max-file-size=0 post-messages=true
@@ -85,13 +89,14 @@ command_body["Nick"]="""filesrc location={0} ! decodebin name=d{1} d{1}. ! queue
 command_footer["Nick"]="""
 c_v. ! sync. sync. ! videoconvert ! videoscale ! video/x-raw,width=720,height=576 ! identity single-segment=true silent=false ! 
   avenc_mpeg2video bitrate=3096000 ! video/mpeg,mpegversion=2 ! mpegvideoparse ! q.sink_1 q.src_1 ! mux.sink_1401 
-c_a1. ! sync. sync. ! audioconvert ! audio/x-raw,channels=2 ! audioresample ! identity single-segment=true ! tee name=t 
-  t.src_0 ! avenc_mp2 bitrate=256000 ! mpegaudioparse !  q.sink_2 q.src_2 ! mux.sink_1461 
-  t.src_1 ! avenc_mp2 bitrate=256000 ! mpegaudioparse !  q.sink_3 q.src_3 ! mux.sink_1462 
-  t.src_2 ! avenc_mp2 bitrate=256000 ! mpegaudioparse !  q.sink_4 q.src_4 ! mux.sink_1463 
-  t.src_3 ! avenc_mp2 bitrate=256000 ! mpegaudioparse !  q.sink_5 q.src_5 ! mux.sink_1464 
-  t.src_4 ! avenc_mp2 bitrate=256000 ! mpegaudioparse !  q.sink_6 q.src_6 ! mux.sink_1465 
-fakesrc num-buffers=1 sizetype=2 sizemax=5 ! application/x-teletext ! q.sink_8 q.sink_8 ! mux.sink_1490 
+c_a1. ! sync. sync. ! audioconvert ! audio/x-raw,channels=2 ! audioresample ! identity single-segment=true ! 
+avenc_mp2fixed bitrate=192000 ! mpegaudioparse ! audio/mpeg,mpegversion=1 ! tee name=t 
+  t.src_0 ! q.sink_2 q.src_2 ! mux.sink_1461 
+  t.src_1 ! q.sink_3 q.src_3 ! mux.sink_1462 
+  t.src_2 ! q.sink_4 q.src_4 ! mux.sink_1463 
+  t.src_3 ! q.sink_5 q.src_5 ! mux.sink_1464 
+  t.src_4 ! q.sink_6 q.src_6 ! mux.sink_1465 
+fakesrc num-buffers=1 sizetype=2 sizemax=5 ! application/x-teletext ! q.sink_8 q.src_8 ! mux.sink_1490 
 mux.src ! tsparse parse-private-sections=true name=p p.program_30633 ! 
 multifilesink location={} 
   next-file=3 max-files=0 max-file-size=0 post-messages=true
@@ -100,15 +105,7 @@ multifilesink location={}
 
 
 
-file_handler = FileHandler('/ddrive/ottstreamer/webapp/logs/encode_nicktoons.log')
-file_handler.setFormatter(logging.Formatter(
-     '%(asctime)s %(levelname)s: %(message)s [in %(pathname)s:%(lineno)d]'))
-file_handler.setLevel(logging.DEBUG)
 logger=logging.getLogger("encode_commercials")
-logger.addHandler(file_handler)
-logger.setLevel(logging.DEBUG)
-logger.info('Hello from encode_nicktoons.py')
-
 media_repository=Config.CACHE_FOLDER
 base_uri=Config.BASE_URI
 
@@ -162,7 +159,8 @@ class Encoder:
         pipeline.set_state(Gst.State.NULL)
      
 
-def encode_nicktoons(channel,txdate): 
+def encode_playlist(channel,txdate): 
+
     ch= next(item for item in Config.LOCALIZED_FEEDS  if item["name"] == channel)
     xls_playlist=os.path.join(Config.STREAMS_ROOT,ch["dir"],"commercials","playlists",
         txdate,txdate+"_"+ch["log"]+".xls")
@@ -170,6 +168,18 @@ def encode_nicktoons(channel,txdate):
     destination_path=os.path.dirname(xls_playlist)
     base_uri=Config.BASE_URI
     gst_channel=channel.split(' ')[0]
+
+    if not os.path.exists(destination_path):
+        os.makedirs(destination_path)
+
+    file_handler = FileHandler(os.path.join(destination_path,"encode.log"))
+    file_handler.setFormatter(logging.Formatter(
+         '%(asctime)s %(levelname)s: %(message)s [in %(pathname)s:%(lineno)d]'))
+    file_handler.setLevel(logging.DEBUG)
+    logger.addHandler(file_handler)
+    logger.setLevel(logging.DEBUG)
+    logger.info('Hello from encode_nicktoons.py')
+
 
     df=pandas.read_excel(xls_playlist)
     #Check for missing Cart Numbers
@@ -207,6 +217,35 @@ def encode_nicktoons(channel,txdate):
         logger.info(command)
         enc=Encoder(command,segment_path)
         enc.run_encoder()
+
+def encoder_log(channel,txdate):
+    ch= next(item for item in Config.LOCALIZED_FEEDS  if item["name"] == channel)
+    regex_breaknumber=r"INFO: ([a-zA-Z\s]*) - ([\d-]*) converting break:([\d]*)"
+    regex_commercials=r"filesrc location=\"([\S]*)\"[\S\s]*name=d([\S]*)"
+    regex_error=r"ERROR: Error:[\S\s]*/GstDecodeBin:d([\d]*)"
+    break_number=0
+    enc_log=""
+    try:
+        with open(os.path.join("/ddrive/streams",ch["dir"],"commercials/playlists",txdate,"encode.log")) as file:
+            for line in file:
+                match=re.search(regex_breaknumber,line)
+                if match:
+                    if break_number>0:
+                        enc_log+="Break{}...{}\n".format(break_number,"Succeeded" if error_index==-1 else "Failed")
+                        if error_index>-1:
+                            enc_log+=commercials[error_index]+'\n'
+                    break_number=int(match.group(3))
+                    commercials=[]
+                    error_index=-1
+                match=re.search(regex_commercials,line)
+                if match:
+                    commercials.append(match.group(1))
+                match=re.search(regex_error,line)
+                if match:
+                    error_index=int(match.group(1))
+    except FileNotFoundError:
+        enc_log="Not encoded yet."
+    return enc_log
 
 if __name__ == '__main__':
     encode_nicktoons(sys.argv[1],sys.argv[2])

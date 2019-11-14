@@ -4,8 +4,8 @@
 {% block app_content %}
 
     <div class="card text-white bg-dark mb-3">
-        <p class="lead"> List of available mother feeds:</p>
-        <table class="table table-dark">
+        <p class="lead"> Incoming mother feeds: (rtp2hls)</p>
+        <table class="table table-dark table-sm">
             <thead><tr>
                 <th scope="col">pid</th>
                 <th scope="col">Channel</th>
@@ -32,20 +32,11 @@
                {%endfor%}
             </tbody>
         </table>
-        <button type="button" class="btn btn-secondary btn-lg"  data-toggle="modal" data-target="#myModal">Add mother feed</button>
-        <!-- Modal -->
-        <div class="modal fade" id="myModal" tabindex="-1" role="dialog" aria-labelledby="myModalLabel">
-          <div class="modal-dialog" role="document">
-            <div class="modal-content">
-               {{wtf.quick_form(form)}}
-            </div>
-          </div>
-        </div>
-    </div>
+   </div>
 
     <div class="card text-white bg-dark mb-3">
-        <p class="lead"> List of localized feeds:</p>
-        <table class="table table-dark">
+        <p class="lead">Outgoing localized feeds: (hls2rtp)</p>
+        <table class="table table-dark table-sm">
             <thead><tr>
                 <th scope="col">pid</th>
                 <th scope="col">Channel</th>
@@ -60,7 +51,7 @@
                     <tr>
                         <th>{{h["pid"]}}</th>
                         <td>{{h["channel"]}}</td>
-                        <td>{{h["source"]}}</td>
+                        <td><a href="{{h["source"]}}">{{h["source"]}}</a></td>
                         <td>{{h["manifest_age"]}}</td>
                         <td>{{h["multicast"]}}</td>
                         <td>{{h["uptime"]}}</td>
@@ -71,15 +62,6 @@
                {%endfor%}
             </tbody>
         </table>
-        <button type="button" class="btn btn-secondary btn-lg"  data-toggle="modal" data-target="#myModa2">Add mother feed</button>
-        <!-- Modal -->
-        <div class="modal fade" id="myModal" tabindex="-1" role="dialog" aria-labelledby="myModalLabel">
-          <div class="modal-dialog" role="document">
-            <div class="modal-content">
-               {{wtf.quick_form(form)}}
-           </div>
-          </div>
-        </div>
     </div>
 
 {% endblock %}

@@ -10,19 +10,19 @@ from config import Config
 import logging
 from logging.handlers import RotatingFileHandler
 
-file_handler = RotatingFileHandler('/ddrive/ottstreamer/webapp/logs/cache_commercials.log', 
-    maxBytes=10240,backupCount=10)
-file_handler.setFormatter(logging.Formatter(
-     '%(asctime)s %(levelname)s: %(message)s [in %(pathname)s:%(lineno)d]'))
-file_handler.setLevel(logging.DEBUG)
-logger=logging.getLogger("cache_commercials")
-logger.addHandler(file_handler)
-logger.setLevel(logging.DEBUG)
-logger.info('Hello from cache_commercials.py')
-
-
 
 def cache_commercials():
+
+        file_handler = RotatingFileHandler('/ddrive/ottstreamer/webapp/logs/cache_commercials.log', 
+            maxBytes=10240,backupCount=10)
+        file_handler.setFormatter(logging.Formatter(
+            '%(asctime)s %(levelname)s: %(message)s [in %(pathname)s:%(lineno)d]'))
+        file_handler.setLevel(logging.DEBUG)
+        logger=logging.getLogger("cache_commercials")
+        logger.addHandler(file_handler)
+        logger.setLevel(logging.DEBUG)
+        logger.info('Hello from cache_commercials.py')
+
         base = datetime.datetime.today()
         date_list = [(base + datetime.timedelta(days=x)) for x in range(5)]
 

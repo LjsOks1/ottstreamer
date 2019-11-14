@@ -1,8 +1,85 @@
 {% extends "base.html" %}
 
+{% block scripts %}
+{% endblock %}
+
+
 {% block app_content %}
-<video width="320" height="240" controls>
-  <source src="rtsp://129.228.120.31:8554/test" type="video/rtsp">
-Your browser does not support the video tag.
-</video>
+
+<script src="https://unpkg.com/video.js/dist/video.js"></script>
+<!--script src="https://unpkg.com/videojs-contrib-hls/dist/videojs-contrib-hls.js"></script-->
+<script src="https://cdn.knightlab.com/libs/timeline3/latest/js/timeline.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/moment.js/2.24.0/moment.js"></script>
+<script src="https://ajax.googleapis.com/ajax/libs/jquery/3.1.0/jquery.min.js"></script>
+<script type="text/javascript" src="https://cdnjs.cloudflare.com/ajax/libs/bootstrap-datepicker/1.9.0/js/bootstrap-datepicker.js"></script>
+<link title="timeline-styles" rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/bootstrap-datepicker/1.9.0/css/bootstrap-datepicker3.min.css">
+
+<div class="container-fluid">
+  <div class="row">
+    <div class="col-md-auto">
+      <button type="button" class="btn btn-light btn-block">Today - Live</button>
+      <div id=datepicker-container> </div>
+    </div>
+    <div class="col">
+      <video-js id=vid1 width=600 height=300 class="vjs-16-9" controls>
+        <source src="http://129.228.120.31/legalrecording/multiview/{{req_date}}/playlist.m3u8"
+                type="application/x-mpegURL">
+      </video-js>
+    </div>
+  </div>
+  <div class="row" id='timeline-embed' style="width: 100%">
+  </div>
+</div>
+
+<!-- Script for videojs -->
+<script>
+  var player = videojs('vid1', {liveui:true});
+  player.ready(function() {
+    var segments=player.vhs.selectPlaylist(0).segments.length
+    console.log("Playlist has " + segments + " items");
+  });
+</script>
+
+
+<link title="timeline-styles" rel="stylesheet" href="https://cdn.knightlab.com/libs/timeline3/latest/css/timeline.css">
+<script type="text/javascript">
+  // The TL.Timeline constructor takes at least two arguments:
+  // the id of the Timeline container (no '#'), and
+  // the URL to your JSON data file or Google spreadsheet.
+  // the id must refer to an element "above" this code,
+  // and the element must have CSS styling to give it width and height
+  // optionally, a third argument with configuration options can be passed.
+  // See below for more about options.
+  var options={
+      timenav_position : "top",
+      height : 165 ,
+      scale_factor:4,
+      trackResize:false,
+  }
+  var timeline = new TL.Timeline('timeline-embed',{{timeline|safe}},options);
+  timeline.on("change",function(data) {
+    console.log("New break selected:"+data.unique_id);
+    params=timeline.getDataById(data.unique_id);
+    program_time=params.start_date.data.date_obj.toISOString();
+    console.log(program_time);
+    player.vhs.seekToProgramTime(program_time,function() { 
+        player.play();
+    });
+  });
+</script>
+
+<script>
+$(function() {
+    $('#datepicker-container').datepicker({
+        inline : true,
+        format : 'yyyy-mm-dd',
+        weekStart :1,
+        }).on('changeDate',function(e) {
+            console.log("New date:"+e.format());
+            location.href="/ottstreamer/index?date="+e.format();
+            });
+});
+
+</script>
+
 {% endblock %}

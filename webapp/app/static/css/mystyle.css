@@ -1,3 +1,19 @@
+
+html, body {
+    height: 100%;
+}
+
+.container {
+
+}
+.tl-storyslider {
+    display:none;
+}
+
+div.tl-menubar {
+    top:0px;
+}
+
 button.slim {
     border:0px;
     padding:0px;

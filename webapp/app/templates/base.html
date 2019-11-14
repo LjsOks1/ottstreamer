@@ -5,7 +5,10 @@
     <link rel="stylesheet" href="https://use.fontawesome.com/releases/v5.7.0/css/all.css" 
         integrity="sha384-lZN37f5QGtY3VHgisS14W3ExzMWZxybE1SJSEsQp9S+oqd12jhcu+A56Ebc1zFSJ" 
             crossorigin="anonymous">
+    <link href="https://unpkg.com/video.js/dist/video-js.css" rel="stylesheet">
+    <link rel="stylesheet" href='css/mystyle.css' />
 {%endblock%}
+
 
 
 {% block title %}
@@ -21,9 +24,6 @@
             <ul class="navbar-nav mr-auto">
                 <li class="nav-item active">
                     <a class="nav-link" href="channels">Processes</a>
-                </li>
-                <li class="nav-item">
-                    <a class="nav-link" href="clients">Localized feeds</a>
                 </li>
                 <li class="nav-item">
                     <a class="nav-link" href="logs">Commercial logs</a>
@@ -55,7 +55,7 @@
 {% block status %}
 {% endblock %}
 {% block content %}
-    <div class="container">
+    <div class="container" style="max-width: 1450px;">
         {% with messages = get_flashed_messages() %}
         {% if messages %}
             {% for message in messages %}

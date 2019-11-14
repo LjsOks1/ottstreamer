@@ -6,3 +6,4 @@ webapp/venv/
 *.swp
 *.swx
 */logs/*
+*/.ipynb_checkpoints/*

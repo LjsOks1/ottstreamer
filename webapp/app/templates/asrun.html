@@ -2,12 +2,25 @@
 {% import 'bootstrap/wtf.html' as wtf %}
 
 {% block app_content %}
-
+    <script>
+        function dump_m3u8(brkid ) {
+            $.post('/ottstreamer/createm3u8', {
+                channel: "{{channel}}",
+                brkid: brkid
+            }).done(function(response) {
+                console.log(response['uri']);
+                $("#m3u8export").find('.modal-body').text(response["uri"])
+                $("#m3u8export").modal("show")
+            }).fail(function() {
+                console.log("{{ ('Error: Could not contact server.') }}");
+            });
+        }
+    </script>
     <div class="jumbotron text-white bg-dark mb-3">
-        <h1 class="display-4">Asrun log: {{channel}} - {{txdate}}  </h1>
+        <h1 class="display-4">Asrun log: {{channel_name}} - {{txdate}}  </h1>
          <hr class="my-4 border-white">
               {% for line in asrun_log %}
-                {{line}}</br>
+                {{line|safe}}</br>
               {%endfor%}
         <p></p>
         <h1 class="display-4">Discrepencies  </h1>
@@ -28,5 +41,25 @@
               {%endfor%}
         
     </div>
+ <!-- Modal -->
+  <div class="modal fade" id="m3u8export" role="dialog">
+    <div class="modal-dialog modal-lg">
+      <!-- Modal content-->
+      <div class="modal-content">
+        <div class="modal-header">
+          <h4 class="modal-title"></h4>
+            <button type="button" class="close" data-dismiss="modal" aria-label="Close">
+                <span aria-hidden="true">&times;</span></button>
+        </div>
+        <div class="modal-body">
+
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="close" data-dismiss="modal">Close</button>
+        </div>
+      </div>
+
+    </div>
+  </div>
 
 {% endblock %}

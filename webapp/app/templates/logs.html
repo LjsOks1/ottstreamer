@@ -4,6 +4,16 @@
 {% block scripts %}
     {{ super() }}
     <script>
+        function encoderlog( destElem, channel, txdate) {
+            $.post('/ottstreamer/encoderlog', {
+                channel: channel,
+                txdate: txdate
+            }).done(function(response) {
+                $(destElem).html(response['text'].replace(/(?:\r\n|\r|\n)/g,'<br/>'));
+            }).fail(function() {
+                $(destElem).text("{{ ('Error: Could not contact server.') }}");
+            });
+        }
         $('#missingmedia').on('show.bs.modal', function (event) {
             var button = $(event.relatedTarget) // Button that triggered the modal
             var missing_list = button.data('missing') // Extract info from data-* attributes
@@ -37,7 +47,8 @@
             // If necessary, you could initiate an AJAX request here (and then do the updating in a callback).
             // Update the modal's content. We'll use jQuery here, but you could use a data binding library or other methods instead.
             var modal = $(this)
-            modal.find('.modal-body').text("Encode commercial breaks for ".concat(channel," - ",txdate ))
+            modal.find('.modal-title').text('Commercial breaks: \n'.concat(channel,' - ',txdate))
+            encoderlog(modal.find('.modal-body'),channel,txdate);
             modal.find('.modal-footer #channel').val(channel)
             modal.find('.modal-footer #txdate').val(txdate)
             modal.find('.modal-footer #formname').val('commbreak')
