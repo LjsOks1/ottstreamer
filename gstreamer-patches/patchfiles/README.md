@@ -3,28 +3,28 @@
 # Install gstreamer-1.0 (As of now Buster comes with gstreamer-1.14.4)
 
 Let's have git first if we don't have it so far...
-sudo apt-get install git
+'''sudo apt-get install git'''
 
 Install all the gstreamer modules we need.
-sudo apt-get install libgstreamer1.0-0 gstreamer1.0-plugins-base gstreamer1.0-plugins-good gstreamer1.0-plugins-bad gstreamer1.0-plugins-ugly gstreamer1.0-libav gstreamer1.0-doc gstreamer1.0-tools gstreamer1.0-x gstreamer1.0-alsa gstreamer1.0-gl gstreamer1.0-gtk3 gstreamer1.0-qt5 gstreamer1.0-pulseaudio
+'''sudo apt-get install libgstreamer1.0-0 gstreamer1.0-plugins-base gstreamer1.0-plugins-good gstreamer1.0-plugins-bad gstreamer1.0-plugins-ugly gstreamer1.0-libav gstreamer1.0-doc gstreamer1.0-tools gstreamer1.0-x gstreamer1.0-alsa gstreamer1.0-gl gstreamer1.0-gtk3 gstreamer1.0-qt5 gstreamer1.0-pulseaudio'''
 
 Add the dev package for the base plugins.
-sudo apt-get install libgstreamer-plugins-base1.0-dev
+'''sudo apt-get install libgstreamer-plugins-base1.0-dev'''
 
 
-git clone https://github.com/GStreamer/gst-plugins-bad.git
+********* gst-plugin-bad *****************<br/>
+
+'''git clone https://github.com/GStreamer/gst-plugins-bad.git
 cd gst-plugins-bad
 git checkout tags/1.14.4
 git checkout tags/1.16.0 gst/mpegtsmux
 git checkout tags/1.16.0 gst/mpegtsdemux
-./autogen.sh --disable-gtk-doc
-
-********* gst-plugin-bad *****************
+./autogen.sh --disable-gtk-doc'''
 
 Checkout ottstreamer and apply patches to gstreamer bad and good plugins
-cd ~/projects
+'''cd ~/projects
 git clone https://github.com/LjsOks1/ottstreamer.git
-cp ottstreamer/gstreamer-patches/patchfiles/gst-plugins-bad-1.14.4.patch gst-plugins-bad
+cp ottstreamer/gstreamer-patches/patchfiles/gst-plugins-bad-1.14.4.patch gst-plugins-bad'''
 
 Go back to the root of gst-plugins-bad, check if patch applies without error.
 patch -p 1 --dry-run < gst-plugins-bad-1.14.4.patch
