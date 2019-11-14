@@ -28,7 +28,7 @@ git checkout tags/1.16.0 gst/mpegtsdemux
 ./autogen.sh --disable-gtk-doc
 ```
 
-Checkout ottstreamer and apply patches to gstreamer bad and good plugins
+Checkout ottstreamer and apply patches to gstreamer-bad
 ```bash
 cd ~/projects
 git clone https://github.com/LjsOks1/ottstreamer.git
@@ -63,17 +63,29 @@ make
 
  ********* gst-plugin-good *****************
 
- git clone https://github.com/GStreamer/gst-plugins-good.git
- cd gst-plugins-good
- git checkout tags/1.14.4
- ./autogen.sh --disable-gtk-doc
+Checkout gstreamer-good...
+```bash
+git clone https://github.com/GStreamer/gst-plugins-good.git
+cd gst-plugins-good
+git checkout tags/1.14.4
+./autogen.sh --disable-gtk-doc
+```
 
- Go back to the root of gst-plugins-good, check if patch applies without error.
- patch -p 1 --dry-run < gst-plugins-good-1.14.4.patch
+Go back to the root of gst-plugins-good, check if patch applies without error.
+```
+patch -p 1 --dry-run < gst-plugins-good-1.14.4.patch
+```
 
- If looks good, apply the patch.
- patch -p 1 < gst-plugins-good-1.14.4.patch
+If looks good, apply the patch.
+```
+patch -p 1 < gst-plugins-good-1.14.4.patch
+```
 
- cd gst/rtp
- make
- sudo cp .libs/libgstrtp.so /usr/lib/x86_64-linux-gnu/gstreamer-1.0/
+Compile and install...
+```
+cd gst/rtp
+make
+sudo cp .libs/libgstrtp.so /usr/lib/x86_64-linux-gnu/gstreamer-1.0/
+```
+
+Now you can check if `gst-inspect-1.0` loads all the recompiled modules...
