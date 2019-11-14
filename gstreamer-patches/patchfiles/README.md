@@ -3,9 +3,9 @@
 # Install gstreamer-1.0 (As of now Buster comes with gstreamer-1.14.4)
 
 Let's have git first if we don't have it so far...
-'''bash
+```bash
 sudo apt-get install git
-'''
+```
 
 Install all the gstreamer modules we need.
 '''bash
