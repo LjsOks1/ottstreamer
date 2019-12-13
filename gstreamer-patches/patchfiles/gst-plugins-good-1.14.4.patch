@@ -1,8 +1,254 @@
+diff --git a/docs/plugins/gst-plugins-good-plugins.hierarchy b/docs/plugins/gst-plugins-good-plugins.hierarchy
+index 1f947d451..e8451fb87 100644
+--- a/docs/plugins/gst-plugins-good-plugins.hierarchy
++++ b/docs/plugins/gst-plugins-good-plugins.hierarchy
+@@ -8,8 +8,6 @@ GObject
+       GstAudioRingBuffer
+         GstAudioSinkRingBuffer
+         GstAudioSrcRingBuffer
+-        GstJackAudioSinkRingBuffer
+-        GstJackAudioSrcRingBuffer
+       GstBus
+       GstClock
+         GstSystemClock
+@@ -17,7 +15,6 @@ GObject
+       GstControlBinding
+       GstControlSource
+       GstDeviceProvider
+-        GstPulseDeviceProvider
+         GstV4l2DeviceProvider
+       GstElement
+         Gst3GPPMux
+@@ -27,19 +24,10 @@ GObject
+         GstAuParse
+         GstAudioDecoder
+           GstALawDec
+-          GstFlacDec
+-          GstMpg123AudioDec
+           GstMuLawDec
+-          GstSpeexDec
+-          GstWavpackDec
+         GstAudioEncoder
+           GstALawEnc
+-          GstFlacEnc
+-          GstLameMP3Enc
+           GstMuLawEnc
+-          GstSpeexEnc
+-          GstTwoLame
+-          GstWavpackEnc
+         GstAudioVisualizer
+           GstGoom
+           GstGoom2k1
+@@ -61,23 +49,12 @@ GObject
+             GstAudioSink
+               GstOss4Sink
+               GstOssSink
+-            GstJackAudioSink
+-            GstPulseSink
+-          GstCACASink
+           GstDynUDPSink
+           GstMultiFileSink
+           GstMultiUDPSink
+             GstUDPSink
+-          GstShout2send
+-          GstSoupHttpClientSink
+           GstTest
+           GstVideoSink
+-            GstAASink
+-            GstGdkPixbufSink
+-            GstGtkBaseSink
+-              GstGtkGLSink
+-              GstGtkSink
+-            GstQtSink
+             GstV4l2Sink
+         GstBaseSrc
+           GstDTMFSrc
+@@ -86,13 +63,7 @@ GObject
+               GstAudioSrc
+                 GstOss4Source
+                 GstOssSrc
+-                GstPulseSrc
+-              GstJackAudioSrc
+-            GstDV1394Src
+-            GstHDV1394Src
+             GstMultiFileSrc
+-            GstQtSrc
+-            GstSoupHTTPSrc
+             GstUDPSrc
+             GstV4l2Src
+             GstXImageSrc
+@@ -133,11 +104,9 @@ GObject
+             GstAgingTV
+             GstAlpha
+             GstAlphaColor
+-            GstCairoOverlay
+             GstDiceTV
+             GstEdgeTV
+             GstGamma
+-            GstGdkPixbufOverlay
+             GstNavigationtest
+             GstOpTV
+             GstQuarkTV
+@@ -170,14 +139,10 @@ GObject
+           GstSplitMuxSink
+           GstSplitMuxSrc
+         GstCutter
+-        GstDVDec
+-        GstDVDemux
+         GstDeinterlace
+         GstDeinterleave
+-        GstFlacTag
+         GstFlvDemux
+         GstFlxDec
+-        GstGdkPixbufDec
+         GstICYDemux
+         GstISMLMux
+         GstImageFreeze
+@@ -304,22 +269,11 @@ GObject
+         GstTagDemux
+           GstApeDemux
+           GstID3Demux
+-        GstTagMux
+-          GstApev2Mux
+-          GstId3v2Mux
+         GstV4l2Radio
+         GstVideoDecoder
+-          GstJpegDec
+           GstPngDec
+-          GstVPXDec
+-            GstVP8Dec
+-            GstVP9Dec
+         GstVideoEncoder
+-          GstJpegEnc
+           GstPngEnc
+-          GstVPXEnc
+-            GstVP8Enc
+-            GstVP9Enc
+           GstY4mEncode
+         GstVideoMixer2
+         GstWavEnc
+@@ -341,39 +295,25 @@ GObject
+       GstRegistry
+       GstTask
+       GstTaskPool
+-    GtkWidget
+-  GResolver
+   GSocket
+   GSocketAddress
+-    GInetSocketAddress
+-      GProxyAddress
+-  GSocketClient
+   GSocketControlMessage
+     GstIPPktinfoMessage
+     GstIPV6PktinfoMessage
+-  GSocketListener
+-    GSocketService
+   GTlsCertificate
+   GTlsDatabase
+   GTlsInteraction
+-  GdkPixbuf
+   GstColorBalanceChannel
+   GstTunerChannel
+   GstTunerNorm
+   RTPSession
+-  SoupSession
+ GInterface
+-  AtkImplementorIface
+   GDatagramBased
+-  GIcon
+   GInitable
+-  GLoadableIcon
+-  GProxyResolver
+   GSocketConnectable
+   GTypePlugin
+   GstChildProxy
+   GstColorBalance
+-  GstNavigation
+   GstPreset
+   GstStreamVolume
+   GstTagSetter
+@@ -383,4 +323,3 @@ GInterface
+   GstURIHandler
+   GstVideoDirection
+   GstVideoOrientation
+-  GtkBuildable
+diff --git a/ext/twolame/gsttwolamemp2enc.c b/ext/twolame/gsttwolamemp2enc.c
+index 31bec6b78..18667a6b4 100644
+--- a/ext/twolame/gsttwolamemp2enc.c
++++ b/ext/twolame/gsttwolamemp2enc.c
+@@ -82,7 +82,7 @@ GST_STATIC_PAD_TEMPLATE ("src",
+     GST_PAD_SRC,
+     GST_PAD_ALWAYS,
+     GST_STATIC_CAPS ("audio/mpeg, "
+-        "mpegversion = (int) 1, "
++        "mpegversion = (int) [1, 2], "
+         "layer = (int) 2, "
+         "rate = (int) { 16000, 22050, 24000, 32000, 44100, 48000 }, "
+         "channels = (int) [ 1, 2 ]")
+@@ -378,7 +378,7 @@ gst_two_lame_set_format (GstAudioEncoder * enc, GstAudioInfo * info)
+ 
+   othercaps =
+       gst_caps_new_simple ("audio/mpeg",
+-      "mpegversion", G_TYPE_INT, 1,
++      "mpegversion", G_TYPE_INT, version,
+       "mpegaudioversion", G_TYPE_INT, version,
+       "layer", G_TYPE_INT, 2,
+       "channels", G_TYPE_INT,
+diff --git a/gst/audioparsers/gstmpegaudioparse.c b/gst/audioparsers/gstmpegaudioparse.c
+index cfad8833a..486ef0421 100644
+--- a/gst/audioparsers/gstmpegaudioparse.c
++++ b/gst/audioparsers/gstmpegaudioparse.c
+@@ -76,7 +76,7 @@ static GstStaticPadTemplate src_template = GST_STATIC_PAD_TEMPLATE ("src",
+     GST_PAD_SRC,
+     GST_PAD_ALWAYS,
+     GST_STATIC_CAPS ("audio/mpeg, "
+-        "mpegversion = (int) 1, "
++        "mpegversion = (int) [1,2], "
+         "layer = (int) [ 1, 3 ], "
+         "mpegaudioversion = (int) [ 1, 3], "
+         "rate = (int) [ 8000, 48000 ], "
+@@ -86,7 +86,7 @@ static GstStaticPadTemplate src_template = GST_STATIC_PAD_TEMPLATE ("src",
+ static GstStaticPadTemplate sink_template = GST_STATIC_PAD_TEMPLATE ("sink",
+     GST_PAD_SINK,
+     GST_PAD_ALWAYS,
+-    GST_STATIC_CAPS ("audio/mpeg, mpegversion = (int) 1")
++    GST_STATIC_CAPS ("audio/mpeg, mpegversion = (int) [1,2]")
+     );
+ 
+ static void gst_mpeg_audio_parse_finalize (GObject * object);
+@@ -716,7 +716,7 @@ gst_mpeg_audio_parse_handle_frame (GstBaseParse * parse,
+   /* metadata handling */
+   if (G_UNLIKELY (caps_change)) {
+     GstCaps *caps = gst_caps_new_simple ("audio/mpeg",
+-        "mpegversion", G_TYPE_INT, 1,
++        "mpegversion", G_TYPE_INT, version,
+         "mpegaudioversion", G_TYPE_INT, version,
+         "layer", G_TYPE_INT, layer,
+         "rate", G_TYPE_INT, rate,
 diff --git a/gst/rtp/gstrtpmp2tpay.c b/gst/rtp/gstrtpmp2tpay.c
-index 12f948ed8..371c84514 100644
+index 12f948ed8..b824aa71f 100644
 --- a/gst/rtp/gstrtpmp2tpay.c
 +++ b/gst/rtp/gstrtpmp2tpay.c
-@@ -123,11 +123,12 @@ gst_rtp_mp2t_pay_setcaps (GstRTPBasePayload * payload, GstCaps * caps)
+@@ -28,6 +28,9 @@
+ #include "gstrtpmp2tpay.h"
+ #include "gstrtputils.h"
+ 
++GST_DEBUG_CATEGORY_STATIC (rtpmp2tpay_debug);  // define category (statically)
++#define GST_CAT_DEFAULT rtpmp2tpay_debug       // set as default
++
+ static GstStaticPadTemplate gst_rtp_mp2t_pay_sink_template =
+ GST_STATIC_PAD_TEMPLATE ("sink",
+     GST_PAD_SINK,
+@@ -91,7 +94,7 @@ gst_rtp_mp2t_pay_init (GstRTPMP2TPay * rtpmp2tpay)
+ {
+   GST_RTP_BASE_PAYLOAD (rtpmp2tpay)->clock_rate = 90000;
+   GST_RTP_BASE_PAYLOAD_PT (rtpmp2tpay) = GST_RTP_PAYLOAD_MP2T;
+-
++  GST_DEBUG_CATEGORY_INIT(rtpmp2tpay_debug,"rtpmp2tpay",0,"Log for rtpmp2tpay");
+   rtpmp2tpay->adapter = gst_adapter_new ();
+ }
+ 
+@@ -123,11 +126,12 @@ gst_rtp_mp2t_pay_setcaps (GstRTPBasePayload * payload, GstCaps * caps)
  static GstFlowReturn
  gst_rtp_mp2t_pay_flush (GstRTPMP2TPay * rtpmp2tpay)
  {
@@ -16,7 +262,7 @@ index 12f948ed8..371c84514 100644
  
    mtu = GST_RTP_BASE_PAYLOAD_MTU (rtpmp2tpay);
  
-@@ -148,9 +149,10 @@ gst_rtp_mp2t_pay_flush (GstRTPMP2TPay * rtpmp2tpay)
+@@ -148,9 +152,10 @@ gst_rtp_mp2t_pay_flush (GstRTPMP2TPay * rtpmp2tpay)
      payload_len -= payload_len % 188;
  
      /* need whole packets */
@@ -28,7 +274,7 @@ index 12f948ed8..371c84514 100644
      /* create buffer to hold the payload */
      outbuf = gst_rtp_buffer_new_allocate (0, 0, 0);
  
-@@ -158,11 +160,19 @@ gst_rtp_mp2t_pay_flush (GstRTPMP2TPay * rtpmp2tpay)
+@@ -158,12 +163,22 @@ gst_rtp_mp2t_pay_flush (GstRTPMP2TPay * rtpmp2tpay)
      paybuf = gst_adapter_take_buffer_fast (rtpmp2tpay->adapter, payload_len);
      gst_rtp_copy_meta (GST_ELEMENT_CAST (rtpmp2tpay), outbuf, paybuf, 0);
      outbuf = gst_buffer_append (outbuf, paybuf);
@@ -47,7 +293,11 @@ index 12f948ed8..371c84514 100644
 -    GST_BUFFER_PTS (outbuf) = rtpmp2tpay->first_ts;
 -    GST_BUFFER_DURATION (outbuf) = rtpmp2tpay->duration;
  
+-    GST_DEBUG_OBJECT (rtpmp2tpay, "pushing buffer of size %u",
 +    avail -= payload_len;
-     GST_DEBUG_OBJECT (rtpmp2tpay, "pushing buffer of size %u",
++    GST_DEBUG_OBJECT (rtpmp2tpay, "pushing buffer TS:%"GST_TIME_FORMAT " DUR:%"GST_TIME_FORMAT "  size %u",
++        GST_TIME_ARGS(GST_BUFFER_PTS(outbuf)),
++        GST_TIME_ARGS(GST_BUFFER_DURATION(outbuf)),
          (guint) gst_buffer_get_size (outbuf));
  
+     ret = gst_rtp_base_payload_push (GST_RTP_BASE_PAYLOAD (rtpmp2tpay), outbuf);
