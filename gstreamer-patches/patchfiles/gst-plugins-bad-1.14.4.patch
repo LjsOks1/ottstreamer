@@ -1,3 +1,64 @@
+diff --git a/configure.ac b/configure.ac
+index 943412cfb..14627a124 100644
+--- a/configure.ac
++++ b/configure.ac
+@@ -945,11 +945,17 @@ AG_GST_CHECK_FEATURE(CUDA, [NVIDIA CUDA API],, [
+       CUDA_LIBS="-L$CUDA_PREFIX/lib -L$CUDA_PREFIX/lib64 -L$CUDA_PREFIX/lib/stubs -L$CUDA_PREFIX/lib64/stubs -lcuda -lcudart"
+     fi
+   else
+-    PKG_CHECK_MODULES([CUDA], [cuda-8.0 cudart-8.0],, [
+-      PKG_CHECK_MODULES([CUDA], [cuda-7.5 cudart-7.5],, [
+-        PKG_CHECK_MODULES([CUDA], [cuda-7.0 cudart-7.0],, [
+-          PKG_CHECK_MODULES([CUDA], [cuda-6.5 cudart-6.5],, [
+-            AC_MSG_WARN([Could not find cuda headers/libraries])])])])])
++    PKG_CHECK_MODULES([CUDA], [cuda-10.1 cudart-10.1],, [
++      PKG_CHECK_MODULES([CUDA], [cuda-10.0 cudart-10.0],, [
++        PKG_CHECK_MODULES([CUDA], [cuda-9.2 cudart-9.2],, [
++          PKG_CHECK_MODULES([CUDA], [cuda-9.1 cudart-9.1],, [
++            PKG_CHECK_MODULES([CUDA], [cuda-9.0 cudart-9.0],, [
++              PKG_CHECK_MODULES([CUDA], [cuda-8.0 cudart-8.0],, [
++                PKG_CHECK_MODULES([CUDA], [cuda-7.5 cudart-7.5],, [
++                  PKG_CHECK_MODULES([CUDA], [cuda-7.0 cudart-7.0],, [
++                    PKG_CHECK_MODULES([CUDA], [cuda-6.5 cudart-6.5],, [
++                      AC_MSG_WARN([Could not find cuda headers/libraries])])])])])])])])])])
++
+   fi
+ 
+   HAVE_CUDA_H=no
+diff --git a/gst-libs/gst/adaptivedemux/gstadaptivedemux.c b/gst-libs/gst/adaptivedemux/gstadaptivedemux.c
+index a0c075b66..a5f366f97 100644
+--- a/gst-libs/gst/adaptivedemux/gstadaptivedemux.c
++++ b/gst-libs/gst/adaptivedemux/gstadaptivedemux.c
+@@ -2838,7 +2838,14 @@ gst_adaptive_demux_stream_wait_manifest_update (GstAdaptiveDemux * demux,
+    * us to download in the playlist or the playlist
+    * became non-live */
+   while (TRUE) {
+-    GST_DEBUG_OBJECT (demux, "No fragment left but live playlist, wait a bit");
++    ret=gst_element_post_message (GST_ELEMENT_CAST (demux),
++        gst_message_new_element (GST_OBJECT_CAST (demux),
++            gst_structure_new ("playlist-overrun",
++              "manifest-uri", G_TYPE_STRING,demux->manifest_uri, 
++              "uri", G_TYPE_STRING,demux->manifest_uri,
++              "manifest-download-start", GST_TYPE_CLOCK_TIME,GST_CLOCK_TIME_NONE,
++              "manifest-download-stop", GST_TYPE_CLOCK_TIME, gst_util_get_timestamp (), NULL)));
++    GST_DEBUG_OBJECT (demux, "No fragment left but live playlist, wait a bit. Message sent:%d",ret);
+ 
+     /* get the manifest_update_lock while still holding the manifest_lock.
+      * This will prevent other threads to signal the condition (they will need
+@@ -4024,7 +4031,12 @@ gst_adaptive_demux_updates_loop (GstAdaptiveDemux * demux)
+             gst_flow_get_name (ret));
+         next_update = gst_adaptive_demux_get_monotonic_time (demux)
+             + klass->get_manifest_update_interval (demux) * GST_USECOND;
+-      } else {
++        gst_element_post_message(GST_ELEMENT_CAST(demux),
++            gst_message_new_element(GST_OBJECT_CAST(demux),
++                gst_structure_new("playlist-dead",
++                    "manifest-uri",G_TYPE_STRING,demux->manifest_uri,
++                    NULL)));
++     } else {
+         GST_ELEMENT_ERROR (demux, STREAM, FAILED,
+             (_("Internal data stream error.")), ("Could not update playlist"));
+         GST_DEBUG_OBJECT (demux, "Stopped updates task because of error");
 diff --git a/gst-libs/gst/mpegts/Makefile.am b/gst-libs/gst/mpegts/Makefile.am
 index f264e33a7..9765fdd27 100644
 --- a/gst-libs/gst/mpegts/Makefile.am
@@ -309,7 +370,7 @@ index 2ee420926..af07ea95a 100644
  
  mpegts_headers = [
 diff --git a/gst/mpegtsdemux/mpegtsbase.c b/gst/mpegtsdemux/mpegtsbase.c
-index 1a68f8691..a0e5466b1 100644
+index 1a68f8691..cd3387116 100644
 --- a/gst/mpegtsdemux/mpegtsbase.c
 +++ b/gst/mpegtsdemux/mpegtsbase.c
 @@ -93,6 +93,8 @@ static gboolean mpegts_base_get_tags_from_eit (MpegTSBase * base,
@@ -478,10 +539,33 @@ index 1a68f8691..a0e5466b1 100644
  
    base = GST_MPEGTS_BASE (parent);
    klass = GST_MPEGTS_BASE_GET_CLASS (base);
-@@ -1415,6 +1455,15 @@ mpegts_base_chain (GstPad * pad, GstObject * parent, GstBuffer * buf)
+@@ -1396,7 +1436,7 @@ mpegts_base_chain (GstPad * pad, GstObject * parent, GstBuffer * buf)
+ 
+   if (klass->input_done)
+     gst_buffer_ref (buf);
+-
++/*
+   if (GST_BUFFER_IS_DISCONT (buf)) {
+     GST_DEBUG_OBJECT (base, "Got DISCONT buffer, flushing");
+     res = mpegts_base_drain (base);
+@@ -1404,9 +1444,9 @@ mpegts_base_chain (GstPad * pad, GstObject * parent, GstBuffer * buf)
+       return res;
+ 
+     mpegts_base_flush (base, FALSE);
+-    /* In the case of discontinuities in push-mode with TIME segment
+-     * we want to drop all previous observations (hard:TRUE) from
+-     * the packetizer */
++    // In the case of discontinuities in push-mode with TIME segment
++    // we want to drop all previous observations (hard:TRUE) from
++    // the packetizer 
+     if (base->mode == BASE_MODE_PUSHING
+         && base->segment.format == GST_FORMAT_TIME) {
+       mpegts_packetizer_flush (base->packetizer, TRUE);
+@@ -1414,6 +1454,15 @@ mpegts_base_chain (GstPad * pad, GstObject * parent, GstBuffer * buf)
+     } else
        mpegts_packetizer_flush (base->packetizer, FALSE);
    }
- 
++*/
 +  if (GST_BUFFER_OFFSET(buf) < prev_offset) {
 +      base->base_offset = prev_offset;
 +      GST_DEBUG_OBJECT(base, "New input file, flattening offsets.");
@@ -490,10 +574,9 @@ index 1a68f8691..a0e5466b1 100644
 +  
 +  GST_BUFFER_OFFSET(buf) += base->base_offset;
 +  GST_BUFFER_OFFSET_END(buf) += base->base_offset;
-+
+ 
    mpegts_packetizer_push (base->packetizer, buf);
  
-   while (res == GST_FLOW_OK) {
 diff --git a/gst/mpegtsdemux/mpegtsbase.h b/gst/mpegtsdemux/mpegtsbase.h
 index 5775cdd66..0deb25bb0 100644
 --- a/gst/mpegtsdemux/mpegtsbase.h
@@ -550,10 +633,10 @@ index 5775cdd66..0deb25bb0 100644
  
  struct _MpegTSBaseClass {
 diff --git a/gst/mpegtsdemux/mpegtspacketizer.c b/gst/mpegtsdemux/mpegtspacketizer.c
-index aebc6881e..1dd382ee2 100644
+index aebc6881e..ac283b8cf 100644
 --- a/gst/mpegtsdemux/mpegtspacketizer.c
 +++ b/gst/mpegtsdemux/mpegtspacketizer.c
-@@ -45,23 +45,18 @@ G_DEFINE_TYPE_EXTENDED (MpegTSPacketizer2, mpegts_packetizer, G_TYPE_OBJECT, 0,
+@@ -45,23 +45,19 @@ G_DEFINE_TYPE_EXTENDED (MpegTSPacketizer2, mpegts_packetizer, G_TYPE_OBJECT, 0,
  
  #define ABSDIFF(a,b) ((a) < (b) ? (b) - (a) : (a) - (b))
  
@@ -567,7 +650,8 @@ index aebc6881e..1dd382ee2 100644
  static void _close_current_group (MpegTSPCR * pcrtable);
 -static void record_pcr (MpegTSPacketizer2 * packetizer, MpegTSPCR * pcrtable,
 -    guint64 pcr, guint64 offset);
-+
++static void mpegts_packetizer_resync(MpegTSPCR*,GstClockTime,GstClockTime,gboolean);
++//GstClockTime mpegts_packetizer_get_current_time(MpegTSPacketizer2*,guint16);
  
  #define CONTINUITY_UNSET 255
  #define VERSION_NUMBER_UNSET 255
@@ -579,7 +663,7 @@ index aebc6881e..1dd382ee2 100644
  get_pcr_table (MpegTSPacketizer2 * packetizer, guint16 pid)
  {
    MpegTSPCR *res;
-@@ -175,7 +170,8 @@ seen_section_before (MpegTSPacketizerStream * stream, guint8 table_id,
+@@ -175,7 +171,8 @@ seen_section_before (MpegTSPacketizerStream * stream, guint8 table_id,
      return FALSE;
    }
    /* Finally return whether we saw that section or not */
@@ -589,7 +673,76 @@ index aebc6881e..1dd382ee2 100644
  }
  
  static MpegTSPacketizerStreamSubtable *
-@@ -469,8 +465,9 @@ mpegts_packetizer_parse_packet (MpegTSPacketizer2 * packetizer,
+@@ -269,6 +266,7 @@ mpegts_packetizer_init (MpegTSPacketizer2 * packetizer)
+   packetizer->nb_seen_offsets = 0;
+   packetizer->refoffset = -1;
+   packetizer->last_in_time = GST_CLOCK_TIME_NONE;
++  packetizer->last_out_time = 0;
+   packetizer->pcr_discont_threshold = GST_SECOND;
+ }
+ 
+@@ -385,19 +383,51 @@ mpegts_packetizer_parse_adaptation_field_control (MpegTSPacketizer2 *
+ 
+   /* PCR */
+   if (afcflags & MPEGTS_AFC_PCR_FLAG) {
+-    MpegTSPCR *pcrtable = NULL;
++    static MpegTSPCR *pcrtable = NULL;
++    static GstClockTime prev_out_time=GST_CLOCK_TIME_NONE;
++    static GstClockTime curr_out_time;
++    static guint64 last_offset;
+     packet->pcr = mpegts_packetizer_compute_pcr (data);
+     data += 6;
+-    GST_DEBUG ("pcr 0x%04x %" G_GUINT64_FORMAT " (%" GST_TIME_FORMAT
+-        ") offset:%" G_GUINT64_FORMAT, packet->pid, packet->pcr,
+-        GST_TIME_ARGS (PCRTIME_TO_GSTTIME (packet->pcr)), packet->offset);
+-
++    GST_DEBUG_OBJECT (packetizer,"pcr 0x%04x %" G_GUINT64_FORMAT " (%" GST_TIME_FORMAT
++        ") offset:%" G_GUINT64_FORMAT " last_out_time:%" GST_TIME_FORMAT,
++        packet->pid,
++        packet->pcr,
++        GST_TIME_ARGS (PCRTIME_TO_GSTTIME (packet->pcr)), 
++        packet->offset,
++        GST_TIME_ARGS(packetizer->last_out_time));
+     PACKETIZER_GROUP_LOCK (packetizer);
+     if (packetizer->calculate_skew
+-        && GST_CLOCK_TIME_IS_VALID (packetizer->last_in_time)) {
+-      pcrtable = get_pcr_table (packetizer, packet->pid);
+-      calculate_skew (packetizer, pcrtable, packet->pcr,
+-          packetizer->last_in_time);
++        && GST_CLOCK_TIME_IS_VALID (packetizer->last_out_time)) {
++        pcrtable = get_pcr_table (packetizer, packet->pid);
++        record_pcr(packetizer, pcrtable, packet->pcr, packet->offset);
++        if(prev_out_time==GST_CLOCK_TIME_NONE){
++            prev_out_time=packetizer->last_out_time;
++        }
++        if(afcflags & 0x80) { //discontinuity
++//          prev_out_time=prev_out_time+(packet->offset-last_offset)*1000;  //Make last packet transmitted with 8mbps????
++          GST_INFO_OBJECT(packetizer,"Resync packetizer. base_time:%"GST_TIME_FORMAT " new PCR:%"GST_TIME_FORMAT,
++            GST_TIME_ARGS(prev_out_time),
++            GST_TIME_ARGS(PCRTIME_TO_GSTTIME(packet->pcr)));
++ //         mpegts_packetizer_resync(pcrtable,prev_out_time,packet->pcr,TRUE);
++          mpegts_packetizer_resync(pcrtable,packetizer->last_out_time,packet->pcr,TRUE);
++          prev_out_time=packetizer->last_out_time;
++        } 
++        curr_out_time=calculate_skew (packetizer, pcrtable, packet->pcr,prev_out_time);
++//        curr_out_time=mpegts_packetizer_pts_to_ts(packetizer,PCRTIME_TO_GSTTIME(packet->pcr),packet->pid);
++        if(curr_out_time==GST_CLOCK_TIME_NONE) {
++//           mpegts_packetizer_resync(pcrtable,prev_out_time,packet->pcr,TRUE);
++          mpegts_packetizer_resync(pcrtable,packetizer->last_out_time,packet->pcr,TRUE);
++          curr_out_time=mpegts_packetizer_pts_to_ts(packetizer,PCRTIME_TO_GSTTIME(packet->pcr),packet->pid);
++          prev_out_time=curr_out_time;
++        }
++        if(curr_out_time==GST_CLOCK_TIME_NONE) {
++            GST_ERROR_OBJECT(packetizer,"Couldn't get timestamp from PCR, although packetizer was resynced.");
++        } else {
++//            prev_out_time=curr_out_time;
++            packetizer->last_out_time=curr_out_time;
++        }
++        last_offset=packet->offset;
+     }
+     if (packetizer->calculate_offset) {
+       if (!pcrtable)
+@@ -469,8 +499,9 @@ mpegts_packetizer_parse_packet (MpegTSPacketizer2 * packetizer,
  
    packet->scram_afc_cc = tmp = *data++;
    /* transport_scrambling_control 2 */
@@ -600,7 +753,43 @@ index aebc6881e..1dd382ee2 100644
  
    packet->data = data;
  
-@@ -1089,8 +1086,8 @@ section_start:
+@@ -578,7 +609,7 @@ mpegts_packetizer_clear (MpegTSPacketizer2 * packetizer)
+   packetizer->map_data = NULL;
+   packetizer->map_size = 0;
+   packetizer->map_offset = 0;
+-  packetizer->last_in_time = GST_CLOCK_TIME_NONE;
++  packetizer->last_in_time =GST_CLOCK_TIME_NONE;
+ 
+   pcrtable = packetizer->observations[packetizer->pcrtablelut[0x1fff]];
+   if (pcrtable)
+@@ -618,7 +649,7 @@ mpegts_packetizer_flush (MpegTSPacketizer2 * packetizer, gboolean hard)
+   packetizer->map_data = NULL;
+   packetizer->map_size = 0;
+   packetizer->map_offset = 0;
+-  packetizer->last_in_time = GST_CLOCK_TIME_NONE;
++  packetizer->last_in_time =GST_CLOCK_TIME_NONE;
+ 
+   pcrtable = packetizer->observations[packetizer->pcrtablelut[0x1fff]];
+   if (pcrtable)
+@@ -635,7 +666,7 @@ mpegts_packetizer_flush (MpegTSPacketizer2 * packetizer, gboolean hard)
+   PACKETIZER_GROUP_UNLOCK (packetizer);
+ 
+   if (hard) {
+-    /* For pull mode seeks in tsdemux the observation must be preserved */
++    /* eFor pull mode seeks in tsdemux the observation must be preserved */
+     flush_observations (packetizer);
+   }
+ }
+@@ -668,7 +699,7 @@ mpegts_packetizer_push (MpegTSPacketizer2 * packetizer, GstBuffer * buffer)
+   GstClockTime ts;
+   if (G_UNLIKELY (packetizer->empty)) {
+     packetizer->empty = FALSE;
+-    packetizer->offset = GST_BUFFER_OFFSET (buffer);
++  //  packetizer->offset = GST_BUFFER_OFFSET (buffer);
+   }
+ 
+   GST_DEBUG ("Pushing %" G_GSIZE_FORMAT " byte from offset %"
+@@ -1089,8 +1120,8 @@ section_start:
    /* Fast path for short packets */
    if (!long_packet) {
      /* We can create the section now (function will check for size) */
@@ -611,7 +800,7 @@ index aebc6881e..1dd382ee2 100644
      /* Only do fast-path if we have enough byte */
      if (section_length < packet->data_end - data) {
        if ((section =
-@@ -1304,7 +1301,7 @@ mpegts_packetizer_resync (MpegTSPCR * pcr, GstClockTime time,
+@@ -1304,7 +1335,7 @@ mpegts_packetizer_resync (MpegTSPCR * pcr, GstClockTime time,
   *
   * Returns: @time adjusted with the clock skew.
   */
@@ -620,50 +809,122 @@ index aebc6881e..1dd382ee2 100644
  calculate_skew (MpegTSPacketizer2 * packetizer,
      MpegTSPCR * pcr, guint64 pcrtime, GstClockTime time)
  {
-@@ -1323,13 +1320,13 @@ calculate_skew (MpegTSPacketizer2 * packetizer,
+@@ -1323,13 +1354,13 @@ calculate_skew (MpegTSPacketizer2 * packetizer,
    if (G_UNLIKELY (!GST_CLOCK_TIME_IS_VALID (pcr->base_time))) {
      pcr->base_time = time;
      pcr->prev_out_time = GST_CLOCK_TIME_NONE;
 -    GST_DEBUG ("Taking new base time %" GST_TIME_FORMAT, GST_TIME_ARGS (time));
-+    GST_INFO ("Taking new base time %" GST_TIME_FORMAT, GST_TIME_ARGS (time));
++    GST_INFO_OBJECT (packetizer,"Taking new base time %" GST_TIME_FORMAT, GST_TIME_ARGS (time));
    }
  
    if (G_UNLIKELY (!GST_CLOCK_TIME_IS_VALID (pcr->base_pcrtime))) {
      pcr->base_pcrtime = gstpcrtime;
      pcr->prev_send_diff = -1;
 -    GST_DEBUG ("Taking new base pcrtime %" GST_TIME_FORMAT,
-+    GST_INFO ("Taking new base pcrtime %" GST_TIME_FORMAT,
++    GST_INFO_OBJECT (packetizer,"Taking new base pcrtime %" GST_TIME_FORMAT,
          GST_TIME_ARGS (gstpcrtime));
    }
  
-@@ -1338,7 +1335,7 @@ calculate_skew (MpegTSPacketizer2 * packetizer,
+@@ -1338,7 +1369,7 @@ calculate_skew (MpegTSPacketizer2 * packetizer,
        gstpcrtime < pcr->last_pcrtime) {
      if (pcr->last_pcrtime - gstpcrtime > PCR_GST_MAX_VALUE / 2) {
        /* PCR wraparound */
 -      GST_DEBUG ("PCR wrap");
-+      GST_INFO ("PCR wrap");
++      GST_INFO_OBJECT (packetizer,"PCR wrap");
        pcr->pcroffset += PCR_GST_MAX_VALUE;
        gstpcrtime = PCRTIME_TO_GSTTIME (pcrtime) + pcr->pcroffset;
        send_diff = gstpcrtime - pcr->base_pcrtime;
-@@ -1346,7 +1343,7 @@ calculate_skew (MpegTSPacketizer2 * packetizer,
+@@ -1346,7 +1377,7 @@ calculate_skew (MpegTSPacketizer2 * packetizer,
          && pcr->last_pcrtime - gstpcrtime > 15 * GST_SECOND) {
        /* Time jumped backward by > 15 seconds, and we have a timestamp
         * to use to close the discont. Assume a reset */
 -      GST_DEBUG ("PCR reset");
-+      GST_INFO ("PCR reset");
++      GST_INFO_OBJECT (packetizer,"PCR reset");
        /* Calculate PCR we would have expected for the given input time,
         * essentially applying the reverse correction process
         *
-@@ -1368,7 +1365,7 @@ calculate_skew (MpegTSPacketizer2 * packetizer,
+@@ -1368,7 +1399,7 @@ calculate_skew (MpegTSPacketizer2 * packetizer,
        pcr->pcroffset += time - pcr->base_time + pcr->base_pcrtime - gstpcrtime;
        gstpcrtime = PCRTIME_TO_GSTTIME (pcrtime) + pcr->pcroffset;
        send_diff = gstpcrtime - pcr->base_pcrtime;
 -      GST_DEBUG ("Introduced offset is now %" GST_TIME_FORMAT
-+      GST_INFO ("Introduced offset is now %" GST_TIME_FORMAT
++      GST_INFO_OBJECT (packetizer,"Introduced offset is now %" GST_TIME_FORMAT
            " corrected pcr time %" GST_TIME_FORMAT,
            GST_TIME_ARGS (pcr->pcroffset), GST_TIME_ARGS (gstpcrtime));
      } else {
-@@ -1920,7 +1917,7 @@ _close_current_group (MpegTSPCR * pcrtable)
+@@ -1392,7 +1423,7 @@ calculate_skew (MpegTSPacketizer2 * packetizer,
+   } else
+     send_diff = gstpcrtime - pcr->base_pcrtime;
+ 
+-  GST_DEBUG ("gstpcr %" GST_TIME_FORMAT ", buftime %" GST_TIME_FORMAT
++  GST_DEBUG_OBJECT (packetizer,"gstpcr %" GST_TIME_FORMAT ", buftime %" GST_TIME_FORMAT
+       ", base %" GST_TIME_FORMAT ", send_diff %" GST_TIME_FORMAT,
+       GST_TIME_ARGS (gstpcrtime), GST_TIME_ARGS (time),
+       GST_TIME_ARGS (pcr->base_pcrtime), GST_TIME_ARGS (send_diff));
+@@ -1424,7 +1455,7 @@ calculate_skew (MpegTSPacketizer2 * packetizer,
+   slope = recv_diff > 0 ? (send_diff * 8) / recv_diff : 8;
+ #endif
+ 
+-  GST_DEBUG ("time %" GST_TIME_FORMAT ", base %" GST_TIME_FORMAT
++  GST_DEBUG_OBJECT (packetizer,"time %" GST_TIME_FORMAT ", base %" GST_TIME_FORMAT
+       ", recv_diff %" GST_TIME_FORMAT ", slope %" G_GUINT64_FORMAT,
+       GST_TIME_ARGS (time), GST_TIME_ARGS (pcr->base_time),
+       GST_TIME_ARGS (recv_diff), slope);
+@@ -1433,7 +1464,7 @@ calculate_skew (MpegTSPacketizer2 * packetizer,
+    * changed too quickly we have to resync because the server likely restarted
+    * its timestamps. */
+   if (ABS (delta - pcr->skew) > packetizer->pcr_discont_threshold) {
+-    GST_WARNING ("delta - skew: %" GST_TIME_FORMAT " too big, reset skew",
++    GST_WARNING_OBJECT (packetizer,"delta - skew: %" GST_TIME_FORMAT " too big, reset skew",
+         GST_TIME_ARGS (delta - pcr->skew));
+     mpegts_packetizer_resync (pcr, time, gstpcrtime, TRUE);
+     send_diff = 0;
+@@ -1444,7 +1475,7 @@ calculate_skew (MpegTSPacketizer2 * packetizer,
+ 
+   if (G_UNLIKELY (pcr->window_filling)) {
+     /* we are filling the window */
+-    GST_DEBUG ("filling %d, delta %" G_GINT64_FORMAT, pos, delta);
++    GST_DEBUG_OBJECT (packetizer,"filling %d, delta %" G_GINT64_FORMAT, pos, delta);
+     pcr->window[pos++] = delta;
+     /* calc the min delta we observed */
+     if (G_UNLIKELY (pos == 1 || delta < pcr->window_min))
+@@ -1454,7 +1485,7 @@ calculate_skew (MpegTSPacketizer2 * packetizer,
+       pcr->window_size = pos;
+ 
+       /* window filled */
+-      GST_DEBUG ("min %" G_GINT64_FORMAT, pcr->window_min);
++      GST_DEBUG_OBJECT (packetizer,"min %" G_GINT64_FORMAT, pcr->window_min);
+ 
+       /* the skew is now the min */
+       pcr->skew = pcr->window_min;
+@@ -1505,7 +1536,7 @@ calculate_skew (MpegTSPacketizer2 * packetizer,
+     }
+     /* average the min values */
+     pcr->skew = (pcr->window_min + (124 * pcr->skew)) / 125;
+-    GST_DEBUG ("delta %" G_GINT64_FORMAT ", new min: %" G_GINT64_FORMAT,
++    GST_DEBUG_OBJECT (packetizer,"delta %" G_GINT64_FORMAT ", new min: %" G_GINT64_FORMAT,
+         delta, pcr->window_min);
+   }
+   /* wrap around in the window */
+@@ -1538,7 +1569,7 @@ no_skew:
+                   && out_time > pcr->prev_out_time) ||
+               /* if the server timestamps did not change */
+               send_diff == pcr->prev_send_diff)) {
+-        GST_DEBUG ("backwards timestamps, using previous time");
++        GST_DEBUG_OBJECT (packetizer,"backwards timestamps, using previous time");
+         out_time = GSTTIME_TO_MPEGTIME (out_time);
+       }
+     }
+@@ -1551,7 +1582,7 @@ no_skew:
+   pcr->prev_in_time = time;
+   pcr->prev_send_diff = send_diff;
+ 
+-  GST_DEBUG ("skew %" G_GINT64_FORMAT ", out %" GST_TIME_FORMAT,
++  GST_DEBUG_OBJECT (packetizer,"skew %" G_GINT64_FORMAT ", out %" GST_TIME_FORMAT,
+       pcr->skew, GST_TIME_ARGS (out_time));
+ 
+   return out_time;
+@@ -1920,7 +1951,7 @@ _close_current_group (MpegTSPCR * pcrtable)
    /* And re-evaluate all groups */
  }
  
@@ -672,7 +933,158 @@ index aebc6881e..1dd382ee2 100644
  record_pcr (MpegTSPacketizer2 * packetizer, MpegTSPCR * pcrtable,
      guint64 pcr, guint64 offset)
  {
-@@ -2335,7 +2332,7 @@ mpegts_packetizer_pts_to_ts (MpegTSPacketizer2 * packetizer,
+@@ -1950,34 +1981,34 @@ record_pcr (MpegTSPacketizer2 * packetizer, MpegTSPCR * pcrtable,
+      *    Create a new group with pcr/offset at the right position
+      *    Initialize current to that group
+      */
+-    GST_DEBUG ("No current window estimator, Checking for group to use");
++    GST_DEBUG_OBJECT (packetizer,"No current window estimator, Checking for group to use");
+     for (tmp = pcrtable->groups; tmp; tmp = tmp->next) {
+       PCROffsetGroup *group = (PCROffsetGroup *) tmp->data;
+ 
+-      GST_DEBUG ("First PCR:%" GST_TIME_FORMAT " offset:%" G_GUINT64_FORMAT
++      GST_DEBUG_OBJECT (packetizer,"First PCR:%" GST_TIME_FORMAT " offset:%" G_GUINT64_FORMAT
+           " PCR_offset:%" GST_TIME_FORMAT,
+           GST_TIME_ARGS (PCRTIME_TO_GSTTIME (group->first_pcr)),
+           group->first_offset,
+           GST_TIME_ARGS (PCRTIME_TO_GSTTIME (group->pcr_offset)));
+-      GST_DEBUG ("Last PCR: +%" GST_TIME_FORMAT " offset: +%" G_GUINT64_FORMAT,
++      GST_DEBUG_OBJECT (packetizer,"Last PCR: +%" GST_TIME_FORMAT " offset: +%" G_GUINT64_FORMAT,
+           GST_TIME_ARGS (PCRTIME_TO_GSTTIME (group->values[group->last_value].
+                   pcr)), group->values[group->last_value].offset);
+       /* Check if before group */
+       if (offset < group->first_offset) {
+-        GST_DEBUG ("offset is before that group");
++        GST_DEBUG_OBJECT (packetizer,"offset is before that group");
+         break;
+       }
+       /* Check if within group */
+       if (offset <=
+           (group->values[group->last_value].offset + group->first_offset)) {
+-        GST_DEBUG ("Already observed PCR offset %" G_GUINT64_FORMAT, offset);
++        GST_DEBUG_OBJECT (packetizer,"Already observed PCR offset %" G_GUINT64_FORMAT, offset);
+         return;
+       }
+       /* Check if just after group (i.e. continuation of it) */
+       if (!(group->flags & PCR_GROUP_FLAG_CLOSED) &&
+           pcr - group->first_pcr - group->values[group->last_value].pcr <=
+           100 * PCR_MSECOND) {
+-        GST_DEBUG ("Continuation of existing group");
++        GST_DEBUG_OBJECT (packetizer,"Continuation of existing group");
+         _use_group (pcrtable, group);
+         return;
+       }
+@@ -1993,15 +2024,15 @@ record_pcr (MpegTSPacketizer2 * packetizer, MpegTSPCR * pcrtable,
+ 
+   /* FIXME : Detect if we've gone into the next group !
+    * FIXME : Close group when that happens */
+-  GST_DEBUG ("first:%d, last:%d, write:%d", current->first, current->last,
++  GST_DEBUG_OBJECT (packetizer,"first:%d, last:%d, write:%d", current->first, current->last,
+       current->write);
+-  GST_DEBUG ("First PCR:%" GST_TIME_FORMAT " offset:%" G_GUINT64_FORMAT,
++  GST_DEBUG_OBJECT (packetizer,"First PCR:%" GST_TIME_FORMAT " offset:%" G_GUINT64_FORMAT,
+       GST_TIME_ARGS (PCRTIME_TO_GSTTIME (current->first_pcr)),
+       current->first_offset);
+-  GST_DEBUG ("Last PCR: +%" GST_TIME_FORMAT " offset: +%" G_GUINT64_FORMAT,
++  GST_DEBUG_OBJECT (packetizer,"Last PCR: +%" GST_TIME_FORMAT " offset: +%" G_GUINT64_FORMAT,
+       GST_TIME_ARGS (PCRTIME_TO_GSTTIME (current->pending[current->last].pcr)),
+       current->pending[current->last].offset);
+-  GST_DEBUG ("To add (corrected) PCR:%" GST_TIME_FORMAT " offset:%"
++  GST_DEBUG_OBJECT (packetizer,"To add (corrected) PCR:%" GST_TIME_FORMAT " offset:%"
+       G_GINT64_FORMAT, GST_TIME_ARGS (PCRTIME_TO_GSTTIME (corpcr)), coroffset);
+ 
+   /* Do we need to close the current group ? */
+@@ -2009,8 +2040,8 @@ record_pcr (MpegTSPacketizer2 * packetizer, MpegTSPCR * pcrtable,
+   if (G_UNLIKELY (corpcr < current->pending[current->last].pcr)) {
+     /* FIXME : ignore very small deltas (< 500ms ?) which are most likely
+      * stray values */
+-    GST_DEBUG
+-        ("PCR smaller than previously observed one, handling discont/wrapover");
++    GST_DEBUG_OBJECT
++        (packetizer,"PCR smaller than previously observed one, handling discont/wrapover");
+     /* Take values from current and put them in the current group (closing it) */
+     /* Create new group with new pcr/offset just after the current group
+      * and mark it as a wrapover */
+@@ -2022,7 +2053,7 @@ record_pcr (MpegTSPacketizer2 * packetizer, MpegTSPCR * pcrtable,
+   /* If PCR diff is greater than 500ms, create new group */
+   if (G_UNLIKELY (corpcr - current->pending[current->last].pcr >
+           500 * PCR_MSECOND)) {
+-    GST_DEBUG ("New PCR more than 500ms away, handling discont");
++    GST_DEBUG_OBJECT (packetizer,"New PCR more than 500ms away, handling discont");
+     /* Take values from current and put them in the current group (closing it) */
+     /* Create new group with pcr/offset just after the current group
+      * and mark it as a discont */
+@@ -2033,7 +2064,7 @@ record_pcr (MpegTSPacketizer2 * packetizer, MpegTSPCR * pcrtable,
+   }
+ 
+   if (G_UNLIKELY (corpcr == current->last_value.pcr)) {
+-    GST_DEBUG ("Ignoring same PCR (stream is drunk)");
++    GST_DEBUG_OBJECT (packetizer,"Ignoring same PCR (stream is drunk)");
+     return;
+   }
+ 
+@@ -2044,19 +2075,19 @@ record_pcr (MpegTSPacketizer2 * packetizer, MpegTSPCR * pcrtable,
+   current->last = (current->last + 1) % PCR_BITRATE_NEEDED;
+   current->write = (current->write + 1) % PCR_BITRATE_NEEDED;
+ 
+-  GST_DEBUG ("first:%d, last:%d, write:%d", current->first, current->last,
++  GST_DEBUG_OBJECT (packetizer,"first:%d, last:%d, write:%d", current->first, current->last,
+       current->write);
+-  GST_DEBUG ("First PCR:%" GST_TIME_FORMAT " offset:%" G_GUINT64_FORMAT,
++  GST_DEBUG_OBJECT (packetizer,"First PCR:%" GST_TIME_FORMAT " offset:%" G_GUINT64_FORMAT,
+       GST_TIME_ARGS (PCRTIME_TO_GSTTIME (current->first_pcr)),
+       current->first_offset);
+-  GST_DEBUG ("Last PCR: +%" GST_TIME_FORMAT " offset: +%" G_GUINT64_FORMAT,
++  GST_DEBUG_OBJECT (packetizer,"Last PCR: +%" GST_TIME_FORMAT " offset: +%" G_GUINT64_FORMAT,
+       GST_TIME_ARGS (PCRTIME_TO_GSTTIME (current->pending[current->last].pcr)),
+       current->pending[current->last].offset);
+ 
+   /* If we haven't stored enough values, bail out */
+   if (current->write != current->first) {
+-    GST_DEBUG
+-        ("Not enough observations to calculate bitrate (first:%d, last:%d)",
++    GST_DEBUG_OBJECT
++        (packetizer,"Not enough observations to calculate bitrate (first:%d, last:%d)",
+         current->first, current->last);
+     return;
+   }
+@@ -2070,7 +2101,7 @@ record_pcr (MpegTSPacketizer2 * packetizer, MpegTSPCR * pcrtable,
+         current->pending[current->first].offset,
+         current->pending[current->last].pcr -
+         current->pending[current->first].pcr);
+-    GST_DEBUG ("Current bitrate is now %" G_GUINT64_FORMAT,
++    GST_DEBUG_OBJECT (packetizer,"Current bitrate is now %" G_GUINT64_FORMAT,
+         current->cur_bitrate);
+ 
+     /* Calculate previous bitrate */
+@@ -2078,13 +2109,13 @@ record_pcr (MpegTSPacketizer2 * packetizer, MpegTSPCR * pcrtable,
+         gst_util_uint64_scale (PCR_SECOND,
+         current->pending[current->first].offset - current->prev.offset,
+         current->pending[current->first].pcr - current->prev.pcr);
+-    GST_DEBUG ("Previous group bitrate now %" G_GUINT64_FORMAT,
++    GST_DEBUG_OBJECT (packetizer,"Previous group bitrate now %" G_GUINT64_FORMAT,
+         current->prev_bitrate);
+ 
+     /* FIXME : Better bitrate changes ? Currently 10% changes */
+     if (ABSDIFF (current->cur_bitrate,
+             current->prev_bitrate) * 10 > current->prev_bitrate) {
+-      GST_DEBUG ("Current bitrate changed by more than 10%% (old:%"
++      GST_DEBUG_OBJECT (packetizer,"Current bitrate changed by more than 10%% (old:%"
+           G_GUINT64_FORMAT " new:%" G_GUINT64_FORMAT ")", current->prev_bitrate,
+           current->cur_bitrate);
+       /* If we detected a change in bitrate, this means that
+@@ -2218,8 +2249,8 @@ mpegts_packetizer_pts_to_ts (MpegTSPacketizer2 * packetizer,
+   pcrtable = get_pcr_table (packetizer, pcr_pid);
+ 
+   if (!GST_CLOCK_TIME_IS_VALID (pcrtable->base_time) && pcr_pid == 0x1fff &&
+-      GST_CLOCK_TIME_IS_VALID (packetizer->last_in_time)) {
+-    pcrtable->base_time = packetizer->last_in_time;
++      GST_CLOCK_TIME_IS_VALID (packetizer->last_out_time)) {
++    pcrtable->base_time = packetizer->last_out_time;
+     pcrtable->base_pcrtime = pts;
+   }
+ 
+@@ -2335,7 +2366,7 @@ mpegts_packetizer_pts_to_ts (MpegTSPacketizer2 * packetizer,
  
    PACKETIZER_GROUP_UNLOCK (packetizer);
  
@@ -682,10 +1094,22 @@ index aebc6881e..1dd382ee2 100644
        GST_TIME_ARGS (pts), pcr_pid);
    return res;
 diff --git a/gst/mpegtsdemux/mpegtspacketizer.h b/gst/mpegtsdemux/mpegtspacketizer.h
-index 0cf83a60d..1a9b43b65 100644
+index 0cf83a60d..bc5b9e830 100644
 --- a/gst/mpegtsdemux/mpegtspacketizer.h
 +++ b/gst/mpegtsdemux/mpegtspacketizer.h
-@@ -328,6 +328,15 @@ typedef struct
+@@ -275,8 +275,10 @@ struct _MpegTSPacketizer2 {
+   /* Number of seen pcr/offset observations (FIXME : kill later) */
+   guint nb_seen_offsets;
+ 
+-  /* Last inputted timestamp */
++  /* Last inputted/outputted timestamp */
+   GstClockTime last_in_time;
++  GstClockTime last_out_time;
++  GstClockTime last_base_time; //base time set due to discointinuity
+ 
+   /* offset to observations table */
+   guint8 pcrtablelut[0x2000];
+@@ -328,6 +330,15 @@ typedef struct
  #define MPEGTS_BIT_SET(field, offs)    ((field)[(offs) >> 3] |=  (1 << ((offs) & 0x7)))
  #define MPEGTS_BIT_UNSET(field, offs)  ((field)[(offs) >> 3] &= ~(1 << ((offs) & 0x7)))
  #define MPEGTS_BIT_IS_SET(field, offs) ((field)[(offs) >> 3] &   (1 << ((offs) & 0x7)))
@@ -702,7 +1126,7 @@ index 0cf83a60d..1a9b43b65 100644
  typedef enum {
    PACKET_BAD       = FALSE,
 diff --git a/gst/mpegtsdemux/mpegtsparse.c b/gst/mpegtsdemux/mpegtsparse.c
-index 8e227baad..7076fc68f 100644
+index 8e227baad..d8837fe91 100644
 --- a/gst/mpegtsdemux/mpegtsparse.c
 +++ b/gst/mpegtsdemux/mpegtsparse.c
 @@ -33,6 +33,8 @@
@@ -756,7 +1180,7 @@ index 8e227baad..7076fc68f 100644
  typedef struct
  {
    MpegTSBaseProgram program;
-@@ -58,12 +95,18 @@ struct _MpegTSParsePad
+@@ -58,12 +95,22 @@ struct _MpegTSParsePad
    /* the program number that the peer wants on this pad */
    gint program_number;
    MpegTSParseProgram *program;
@@ -767,15 +1191,19 @@ index 8e227baad..7076fc68f 100644
  
    /* the return of the latest push */
    GstFlowReturn flow_return;
++
 +  GstBuffer *pending_packets;
 +  GstBuffer *spliced_packets;
 +  gboolean has_pat, has_pmt;
 +  gboolean splicing_inprogress;
 +  GstMemory *pat, *pmt;
++  guint64 min_pts,max_pts,first_pcr,last_pcr;
++  guint64 video_frame_duration; //Duration of a video frame. Used for calculating the end of a video frame if PTS is known.
++  GstClockTime next_pcr;  // PCR value of the packet after the splicing point. Appended in an empty video packet to the end of the regional segment.
  };
  
  static GstStaticPadTemplate src_template =
-@@ -84,6 +127,7 @@ enum
+@@ -84,6 +131,7 @@ enum
    PROP_SET_TIMESTAMPS,
    PROP_SMOOTHING_LATENCY,
    PROP_PCR_PID,
@@ -783,7 +1211,7 @@ index 8e227baad..7076fc68f 100644
    /* FILL ME */
  };
  
-@@ -115,6 +159,8 @@ static void mpegts_parse_release_pad (GstElement * element, GstPad * pad);
+@@ -115,6 +163,8 @@ static void mpegts_parse_release_pad (GstElement * element, GstPad * pad);
  static gboolean mpegts_parse_src_pad_query (GstPad * pad, GstObject * parent,
      GstQuery * query);
  static gboolean push_event (MpegTSBase * base, GstEvent * event);
@@ -792,7 +1220,7 @@ index 8e227baad..7076fc68f 100644
  
  #define mpegts_parse_parent_class parent_class
  G_DEFINE_TYPE (MpegTSParse2, mpegts_parse, GST_TYPE_MPEGTS_BASE);
-@@ -159,6 +205,10 @@ mpegts_parse_class_init (MpegTSParse2Class * klass)
+@@ -159,6 +209,10 @@ mpegts_parse_class_init (MpegTSParse2Class * klass)
        g_param_spec_int ("pcr-pid", "PID containing PCR",
            "Set the PID to use for PCR values (-1 for auto)",
            -1, G_MAXINT, -1, G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS));
@@ -803,7 +1231,7 @@ index 8e227baad..7076fc68f 100644
  
    element_class = GST_ELEMENT_CLASS (klass);
    element_class->pad_removed = mpegts_parse_pad_removed;
-@@ -169,7 +219,7 @@ mpegts_parse_class_init (MpegTSParse2Class * klass)
+@@ -169,7 +223,7 @@ mpegts_parse_class_init (MpegTSParse2Class * klass)
    gst_element_class_add_static_pad_template (element_class, &program_template);
  
    gst_element_class_set_static_metadata (element_class,
@@ -812,7 +1240,7 @@ index 8e227baad..7076fc68f 100644
        "Parses MPEG2 transport streams",
        "Alessandro Decina <alessandro@nnva.org>, "
        "Zaheer Abbas Merali <zaheerabbas at merali dot org>");
-@@ -270,6 +320,23 @@ mpegts_parse_set_property (GObject * object, guint prop_id,
+@@ -270,6 +324,23 @@ mpegts_parse_set_property (GObject * object, guint prop_id,
      case PROP_PCR_PID:
        parse->pcr_pid = parse->user_pcr_pid = g_value_get_int (value);
        break;
@@ -836,7 +1264,7 @@ index 8e227baad..7076fc68f 100644
      default:
        G_OBJECT_WARN_INVALID_PROPERTY_ID (object, prop_id, pspec);
    }
-@@ -389,7 +456,31 @@ push_event (MpegTSBase * base, GstEvent * event)
+@@ -389,7 +460,31 @@ push_event (MpegTSBase * base, GstEvent * event)
  
    return TRUE;
  }
@@ -869,7 +1297,7 @@ index 8e227baad..7076fc68f 100644
  static MpegTSParsePad *
  mpegts_parse_create_tspad (MpegTSParse2 * parse, const gchar * pad_name)
  {
-@@ -399,6 +490,8 @@ mpegts_parse_create_tspad (MpegTSParse2 * parse, const gchar * pad_name)
+@@ -399,6 +494,8 @@ mpegts_parse_create_tspad (MpegTSParse2 * parse, const gchar * pad_name)
    pad = gst_pad_new_from_static_template (&program_template, pad_name);
    gst_pad_set_query_function (pad,
        GST_DEBUG_FUNCPTR (mpegts_parse_src_pad_query));
@@ -878,7 +1306,7 @@ index 8e227baad..7076fc68f 100644
  
    /* create our wrapper */
    tspad = g_new0 (MpegTSParsePad, 1);
-@@ -407,6 +500,12 @@ mpegts_parse_create_tspad (MpegTSParse2 * parse, const gchar * pad_name)
+@@ -407,9 +504,16 @@ mpegts_parse_create_tspad (MpegTSParse2 * parse, const gchar * pad_name)
    tspad->program = NULL;
    tspad->pushed = FALSE;
    tspad->flow_return = GST_FLOW_NOT_LINKED;
@@ -888,10 +1316,15 @@ index 8e227baad..7076fc68f 100644
 +  tspad->has_pmt = FALSE;
 +  tspad->splicing_inprogress = FALSE;
 +  tspad->last_splice_ts = GST_CLOCK_TIME_NONE;
++  tspad->video_frame_duration=90000*0.02; //FIXME: Should depend on encoding. MPEG2 uses 40ms, MPEG4 20ms. 
    gst_pad_set_element_private (pad, tspad);
    gst_flow_combiner_add_pad (parse->flowcombiner, pad);
+-
++  
+   return tspad;
+ }
  
-@@ -457,6 +556,7 @@ mpegts_parse_request_new_pad (GstElement * element, GstPadTemplate * template,
+@@ -457,6 +561,7 @@ mpegts_parse_request_new_pad (GstElement * element, GstPadTemplate * template,
    gint program_num = -1;
    GstEvent *event;
    gchar *stream_id;
@@ -899,7 +1332,7 @@ index 8e227baad..7076fc68f 100644
  
    g_return_val_if_fail (template != NULL, NULL);
    g_return_val_if_fail (GST_IS_MPEGTS_PARSE (element), NULL);
-@@ -507,6 +607,11 @@ mpegts_parse_request_new_pad (GstElement * element, GstPadTemplate * template,
+@@ -507,6 +612,11 @@ mpegts_parse_request_new_pad (GstElement * element, GstPadTemplate * template,
      gst_event_set_group_id (event, parse->group_id);
  
    gst_pad_push_event (pad, event);
@@ -911,7 +1344,7 @@ index 8e227baad..7076fc68f 100644
    g_free (stream_id);
  
    gst_element_add_pad (element, pad);
-@@ -525,6 +630,464 @@ mpegts_parse_release_pad (GstElement * element, GstPad * pad)
+@@ -525,6 +635,600 @@ mpegts_parse_release_pad (GstElement * element, GstPad * pad)
    gst_element_remove_pad (element, pad);
  }
  
@@ -1024,6 +1457,62 @@ index 8e227baad..7076fc68f 100644
 +    GST_LOG_OBJECT(parse, "Adaptation only packet for PID:%i is appended with discountinuity flag.", pid);
 +}
 +
++
++//new_pcr is in nanoseconds!!!!!!
++static void
++mpegts_parse_tspad_insert_adaptation_field_with_pcr(MpegTSParse2 *parse, MpegTSParsePad *tspad, guint16 pid,GstClockTime new_pcr, GstBuffer *buf) {
++    GstMemory *mem = gst_allocator_alloc(NULL, 188, NULL);
++    GstMapInfo info;
++    guint64 pcr_base;
++    guint16 pcr_ext;
++
++    gst_memory_map(mem, &info, GST_MAP_WRITE);
++    memset(info.data, 0xff, 188);
++    info.data[0] = 0x47;
++    info.data[1] = (pid & 0x1fff) >> 8;
++    info.data[2] = (pid & 0x00ff);
++    info.data[3] = 0x20 | (tspad->program->program.streams[pid]->cc % 16);
++    info.data[4] = 188 - 11;
++    info.data[5] = 0x10;
++    pcr_base = (GSTTIME_TO_PCRTIME(new_pcr)/300)&0x1ffffffff; //truncate to 33 bits
++    pcr_ext = GSTTIME_TO_PCRTIME(new_pcr)%300;
++    GST_WRITE_UINT32_BE(info.data+6,pcr_base>>1); 
++    GST_WRITE_UINT16_BE(info.data+10,((pcr_base&0x1)<<15)|(pcr_ext&0x1ff));
++
++    gst_memory_unmap(mem, &info);
++    gst_buffer_append_memory(buf, mem);
++    GST_LOG_OBJECT(parse, "Adaptation only packet for PID:%i is appended with PCR:%."GST_TIME_FORMAT, 
++        pid,GST_TIME_ARGS(new_pcr));
++}
++
++static void
++set_packet_pcr(MpegTSPacketizerPacket *packet,GstClockTime new_pcr)
++// new_pcr value is in ns
++{
++    guint64 pcr_base;
++    guint16 pcr_ext;
++
++    pcr_base = (GSTTIME_TO_PCRTIME(new_pcr)/300)&0x1ffffffff; //truncate to 33 bits
++    pcr_ext = GSTTIME_TO_PCRTIME(new_pcr)%300;
++    GST_WRITE_UINT32_BE(packet->data_start+6,pcr_base>>1); 
++    GST_WRITE_UINT16_BE(packet->data_start+10,((pcr_base&0x1)<<15)|(pcr_ext&0x1ff));
++}
++
++static inline guint64
++mpegts_packetizer_compute_pcr (const guint8 * data)
++{
++   guint32 pcr1;
++   guint16 pcr2;
++   guint64 pcr, pcr_ext;
++ 
++   pcr1 = GST_READ_UINT32_BE (data);
++   pcr2 = GST_READ_UINT16_BE (data + 4);
++   pcr = ((guint64) pcr1) << 1;
++   pcr |= (pcr2 & 0x8000) >> 15;
++   pcr_ext = (pcr2 & 0x01ff);
++   return pcr * 300 + pcr_ext % 300;
++}
++
 +static GstFlowReturn
 +mpegts_parse_tspad_queue_packet(MpegTSParse2 * parse, MpegTSParsePad * 
 +    tspad, MpegTSPacketizerPacket * packet, GstMpegtsSection * section)
@@ -1057,7 +1546,7 @@ index 8e227baad..7076fc68f 100644
 +                    txt_payload = packet->payload + pes.header_size;
 +                    GST_LOG_OBJECT(parse, "Teletext packet detected at %" GST_TIME_FORMAT " packet length:%i header length:%i data_identifier:%x",
 +                        GST_TIME_ARGS(MPEGTIME_TO_GSTTIME(pes.PTS)), pes.packet_length, pes.header_size, *txt_payload);
-+                    if (*txt_payload++ > 0x10 ) { //data_identifier: EBU data EN 300 472 (teletext) Can be anything???
++                    if (*txt_payload++ >= 0x10 ) { //data_identifier: EBU data EN 300 472 (teletext)/EN 301 775; next byte:data_unit_id
 +                        GST_LOG_OBJECT(parse, "Teletext packet detected at %" GST_TIME_FORMAT " packet length:%i data_unit_id:0x%x",
 +                            GST_TIME_ARGS(MPEGTIME_TO_GSTTIME(pes.PTS)), *(txt_payload+1),*txt_payload);
 +                        while (txt_payload < packet->data_end) {
@@ -1094,41 +1583,70 @@ index 8e227baad..7076fc68f 100644
 +                                        GST_TIME_ARGS(MPEGTIME_TO_GSTTIME(pes.PTS)),c,*(txt_payload+11),*(txt_payload+12));
 +                                }
 +
++                            } else {
++                                GST_LOG_OBJECT(parse, "Non-teletext packet detected in teletext pid.");
 +                            }
-+                            txt_payload += *(txt_payload+1); //Move to the next txt packet in the TS packet payload
++                            txt_payload += *(txt_payload+1)+1; //Move to the next txt data block in the TS packet payload
 +                        }
 +                    }
 +                }
 +            }
 +        }
 +    }
-+    
++    //FIXME Here we handle the discontinuity
 +    if (packet->afc_flags & 0x10) {
 +        //Have a PCR in the packet, let's convert it to buffer timestamp.
-+        if ((packet->afc_flags & 0x80) && GST_BUFFER_PTS_IS_VALID(tspad->pending_packets)) { 
-+            //We have discontinuity flag set. Let's set a few things....black magic needs more understanding!!!!
-+            MpegTSPacketizer2 *packetizer = parse->parent.packetizer;
-+            MpegTSPCR *pcrtable = NULL;
-+            PACKETIZER_GROUP_LOCK(packetizer);
-+            if (packetizer->calculate_skew
-+                && GST_CLOCK_TIME_IS_VALID(packetizer->last_in_time)) {
-+                pcrtable = get_pcr_table(packetizer, packet->pid);
-+                calculate_skew(packetizer, pcrtable, packet->pcr,
-+                    GST_BUFFER_PTS(tspad->pending_packets)+GST_BUFFER_DURATION(tspad->pending_packets));
++        current_timestamp = mpegts_packetizer_pts_to_ts(parse->parent.packetizer,PCRTIME_TO_GSTTIME(packet->pcr),packet->pid);
++        if(current_timestamp==GST_CLOCK_TIME_NONE) {
++          MpegTSPacketizer2 *packetizer=parse->parent.packetizer; 
++          GST_ERROR_OBJECT(parse,"Couldn't get timestamp from PCR. Bytes from last PCR:%u ",parse->bytes_since_pcr);
++          // This is bad, we have a PCR in the packet but we cannot convert it to a timestamp...
++          // Let's increase the log level and try again....
++          gst_debug_set_threshold_for_name("mpegtspacketizer",GST_LEVEL_DEBUG);
++          GST_DEBUG_OBJECT (parse,"pcr 0x%04x %" G_GUINT64_FORMAT " (%" GST_TIME_FORMAT ") offset:%" G_GUINT64_FORMAT " last_in_time:%" GST_TIME_FORMAT, 
++                packet->pid, packet->pcr,GST_TIME_ARGS (PCRTIME_TO_GSTTIME (packet->pcr)), packet->offset,GST_TIME_ARGS(packetizer->last_in_time));
++          current_timestamp = mpegts_packetizer_pts_to_ts(parse->parent.packetizer,PCRTIME_TO_GSTTIME(packet->pcr),packet->pid);
++          if(current_timestamp==GST_CLOCK_TIME_NONE) {
++            //Send an error to the pipeline that normally quits the mainloop.
++            GST_ELEMENT_ERROR(GST_ELEMENT_CAST(parse),STREAM,FAILED,(NULL),("Couldn't get timestamp from PCR.")); 
++          }
++          gst_debug_set_threshold_for_name("mpegtspacketizer",GST_LEVEL_WARNING);
++       } else { // We have a valid timestamp. Should be the norma case.
++         parse->parent.packetizer->last_out_time=current_timestamp;
++       }
++       if ((packet->afc_flags & 0x80) && GST_BUFFER_PTS_IS_VALID(tspad->pending_packets)) { 
++            //FIXME: We have discontinuity flag set and this is a video(pcr) packet.
++            //current_timestamp= GST_BUFFER_PTS(tspad->pending_packets) + (parse->bytes_since_pcr*8/4000000)*1000000000;
++            if (mpegts_parse_pes_header(packet->payload, packet->data_end - packet->payload, &pes) == PES_PARSING_OK) {
++                GstClockTime pcr_2,ideal_pcr_0;
++                gint64 pcr_diff; 
++                if(pes.DTS!=GST_CLOCK_TIME_NONE) {
++                    //Have a DTS, lets assume that first packet is 2 frames back
++                    pcr_2=pes.PTS-(90000*0.08); //90kHz*80ms -- duration of 2 frames
++                } else {
++                    pcr_2=pes.PTS; //We just have I and P frames, PTS is monoton increasing
++                }
++                GST_DEBUG_OBJECT(parse,"Discontinuity detected. PCR1 %" GST_TIME_FORMAT " PCR3 %" GST_TIME_FORMAT " PCR_0 %" GST_TIME_FORMAT " PCR_2 %" GST_TIME_FORMAT ,
++                    GST_TIME_ARGS(PCRTIME_TO_GSTTIME(tspad->last_pcr)),
++                    GST_TIME_ARGS(MPEGTIME_TO_GSTTIME(tspad->max_pts)),
++                    GST_TIME_ARGS(PCRTIME_TO_GSTTIME(packet->pcr)),
++                    GST_TIME_ARGS(MPEGTIME_TO_GSTTIME(pcr_2)));
++                ideal_pcr_0=MPEGTIME_TO_GSTTIME(pcr_2)-(MPEGTIME_TO_GSTTIME(tspad->max_pts+tspad->video_frame_duration)-PCRTIME_TO_GSTTIME(tspad->last_pcr));
++                pcr_diff=PCRTIME_TO_GSTTIME(packet->pcr)-PCRTIME_TO_GSTTIME(ideal_pcr_0);
++                GST_DEBUG_OBJECT(parse,"New fragment starting with PCR: %" GST_TIME_FORMAT ", ideal PCR: %" GST_TIME_FORMAT " difference:%"G_GINT64_FORMAT " ms.",
++                    GST_TIME_ARGS(PCRTIME_TO_GSTTIME(packet->pcr)),
++                    GST_TIME_ARGS(ideal_pcr_0),
++                    pcr_diff/1000000);
++                set_packet_pcr(packet,ideal_pcr_0);
++                packet->pcr=mpegts_packetizer_compute_pcr(packet->data_start+6);
++                GST_DEBUG_OBJECT(parse,"Packet PCR has been changed to %"GST_TIME_FORMAT,GST_TIME_ARGS(PCRTIME_TO_GSTTIME(packet->pcr)));
++            } else {
++                GST_ERROR_OBJECT(parse,"Discontinuity detected but couldn't parse PES header.");
 +            }
-+            if (packetizer->calculate_offset) {
-+                if (!pcrtable)
-+                    pcrtable = get_pcr_table(packetizer, packet->pid);
-+                record_pcr(packetizer, pcrtable, packet->pcr, packet->offset);
-+            } 
-+            packetizer->last_in_time = GST_BUFFER_PTS(tspad->pending_packets) + GST_BUFFER_DURATION(tspad->pending_packets);
-+            current_timestamp= GST_BUFFER_PTS(tspad->pending_packets) + GST_BUFFER_DURATION(tspad->pending_packets);
-+            PACKETIZER_GROUP_UNLOCK(packetizer);
 +        }
-+        else {
-+            current_timestamp = mpegts_packetizer_pts_to_ts(parse->parent.packetizer, PCRTIME_TO_GSTTIME(packet->pcr), packet->pid);
-+        }
-+        GST_LOG_OBJECT(parse,"current_timestamp:%"GST_TIME_FORMAT,GST_TIME_ARGS(current_timestamp));
++        GST_DEBUG_OBJECT(parse,"PCR:%"GST_TIME_FORMAT " current_timestamp:%"GST_TIME_FORMAT,
++            GST_TIME_ARGS(PCRTIME_TO_GSTTIME(packet->pcr)),
++            GST_TIME_ARGS(current_timestamp));
 +    }
 +
 +    if ((packet->afc_flags & 0x10) && (tspad->last_splice_ts==GST_CLOCK_TIME_NONE)) { 
@@ -1174,7 +1692,8 @@ index 8e227baad..7076fc68f 100644
 +        }
 +    }
 +
-+    if ((packet->afc_flags & 0x40) && (packet->afc_flags & 0x10) && (tspad->pending_packets != NULL) && tspad->splicing_inprogress==FALSE) {
++    if ((packet->afc_flags & 0x40) && (packet->afc_flags & 0x10) && (tspad->pending_packets != NULL) && 
++        tspad->splicing_inprogress==FALSE && parse->parent.parse_private_sections==TRUE) {
 +        //random access and PCR bits are set; Either push out buffer or initiate splicing...
 +        if (tspad->splicing_inprogress == TRUE) {
 +            GST_WARNING_OBJECT(parse, "New packet with random access, although splicing is already in progress. Shouldn't happen!!!!");
@@ -1195,10 +1714,11 @@ index 8e227baad..7076fc68f 100644
 +                    tspad->program->program.streams[packet->pid]->already_spliced = TRUE;
 +                    if (tspad->spliced_packets == NULL) {
 +                        //Allocate a temp buffer for the packets that should go to the next buffer....
-+                        //gst_debug_set_threshold_from_string("3,tsparse:6", TRUE);
++                        //gst_debug_set_threshold_for_name("tsparse", GST_LEVEL_LOG);
 +                        tspad->spliced_packets = gst_buffer_new();
 +                        if (packet->afc_flags & 0x10) { //packet has PCR
 +                            GST_BUFFER_PTS(tspad->spliced_packets) = current_timestamp;
++                            tspad->next_pcr=packet->pcr;
 +                            GST_BUFFER_OFFSET(tspad->spliced_packets) = packet->offset;
 +                            GST_BUFFER_DURATION(tspad->pending_packets) = GST_BUFFER_PTS(tspad->spliced_packets) - GST_BUFFER_PTS(tspad->pending_packets);
 +                            if (set_packet_discontinuity_flag(parse,packet) == FALSE) {
@@ -1233,10 +1753,18 @@ index 8e227baad..7076fc68f 100644
 +    else
 +        all_streams_spliced = FALSE;
 +   
-+    if ((tspad->splicing_inprogress == FALSE && ((packet->afc_flags & 0x40) && (packet->afc_flags & 0x10) && (tspad->pending_packets != NULL))) ||
-+        (tspad->splicing_inprogress && all_streams_spliced) ||
-+        (ad_hoc_splice==TRUE)) {
++    if ((tspad->splicing_inprogress == FALSE && ((packet->afc_flags & 0x40) && (packet->afc_flags & 0x10) 
++        && (parse->parent.parse_private_sections==TRUE) &&  (tspad->pending_packets != NULL))) || //Random access flag and parse_private_section==TRUE
++        (tspad->splicing_inprogress && all_streams_spliced) || // Splicing done driven by X31 or SCTE35
++        (ad_hoc_splice==TRUE) ||  // Add hoc splice after 15sec
++        ((parse->parent.parse_private_sections==FALSE) && (packet->afc_flags & 0x10))) {// if parse_private_section==FALSE send out buffer at every PCR
 +
++        //Here we just insert a packet with PCR as the last packet. 
++        if(tspad->splicing_inprogress && all_streams_spliced) {
++            GST_DEBUG_OBJECT(parse,"Inserting packet with PCR:%"GST_TIME_FORMAT " as the last packet.",
++                GST_TIME_ARGS(PCRTIME_TO_GSTTIME(tspad->next_pcr)));
++            mpegts_parse_tspad_insert_adaptation_field_with_pcr(parse,tspad,parse->pcr_pid,PCRTIME_TO_GSTTIME(tspad->next_pcr),tspad->pending_packets);
++        }
 +        //This is the generic part, we should push out the pending packets either if splicing or just found a random_access packet
 +        //But set offset and duration first, if feeding payloader...
 +        if(tspad->splicing_inprogress==FALSE &&  ad_hoc_splice==FALSE) {
@@ -1249,23 +1777,20 @@ index 8e227baad..7076fc68f 100644
 +            GST_BUFFER_DURATION(tspad->pending_packets) = current_timestamp - GST_BUFFER_PTS(tspad->pending_packets);
 +            GST_BUFFER_OFFSET_END(tspad->pending_packets) = GST_BUFFER_OFFSET(tspad->pending_packets) + gst_buffer_get_size(tspad->pending_packets);
 +        }
-+        GST_DEBUG_OBJECT(parse, "Pushing pending buffer to tspad...");
++
++        GST_DEBUG_OBJECT(parse, "Pushing out pending packets...  Timestamp:%"GST_TIME_FORMAT " DUR:%"GST_TIME_FORMAT " SIZE:%ld FIRST_PCR:%"GST_TIME_FORMAT 
++                                " LAST_PCR:%" GST_TIME_FORMAT " PTS_MIN:%"GST_TIME_FORMAT " PTS_MAX:%"GST_TIME_FORMAT, 
++            GST_TIME_ARGS(GST_BUFFER_PTS(tspad->pending_packets)),
++            GST_TIME_ARGS(GST_BUFFER_DURATION(tspad->pending_packets)),
++            gst_buffer_get_size(tspad->pending_packets),
++            GST_TIME_ARGS(PCRTIME_TO_GSTTIME(tspad->first_pcr)),
++            GST_TIME_ARGS(PCRTIME_TO_GSTTIME(tspad->last_pcr)),
++            GST_TIME_ARGS(MPEGTIME_TO_GSTTIME(tspad->min_pts)),
++            GST_TIME_ARGS(MPEGTIME_TO_GSTTIME(tspad->max_pts)));
++
 +        ret = gst_pad_push(tspad->pad, tspad->pending_packets);
 +        ret = gst_flow_combiner_update_flow(parse->flowcombiner, ret);
-+        GST_DEBUG_OBJECT(parse, "Pushed out pending packets with result:%s. Timestamp:%" GST_TIME_FORMAT
-+            " DUR:%" GST_TIME_FORMAT, gst_flow_get_name(ret), GST_TIME_ARGS(GST_BUFFER_PTS(tspad->pending_packets)),
-+            GST_TIME_ARGS(GST_BUFFER_DURATION(tspad->pending_packets)));
-+        
-+        if ((packet->afc_flags & 0x80) && (packet->afc_flags & 0x10)) {
-+            //We have discountinuity flag set in the packet. Send a new segment event.
-+            GstSegment seg;
-+            gst_segment_init(&seg, GST_FORMAT_TIME);
-+            seg.start = current_timestamp;
-+            seg.flags = GST_SEGMENT_FLAG_RESET;
-+            GST_INFO_OBJECT(parse,
-+                "Discontinuity detected. Generating time output segment %" GST_SEGMENT_FORMAT, &seg);
-+            //gst_pad_push_event(tspad->pad, gst_event_new_segment(&seg));
-+        }
++        GST_DEBUG_OBJECT(parse,"Pending packets pushed with result:%i",ret);
 +
 +        tspad->pending_packets = NULL;
 +
@@ -1287,35 +1812,59 @@ index 8e227baad..7076fc68f 100644
 +            spliceevent = gst_video_event_new_downstream_force_key_unit(GST_CLOCK_TIME_NONE,/*tspad->last_splice_ts,*/ GST_CLOCK_TIME_NONE, GST_CLOCK_TIME_NONE, FALSE, splice_event_id);
 +            gst_pad_push_event(tspad->pad, spliceevent); 
 +            tspad->program->program.spliceinfo = NULL; //delete splice event as we've already served it.
-+            tspad->has_pat = FALSE;
-+            tspad->has_pmt = FALSE;
 +            if (GST_IS_BUFFER(tspad->spliced_packets)) {
-+                gst_buffer_insert_memory(tspad->spliced_packets, 0, tspad->pmt);
-+                gst_buffer_insert_memory(tspad->spliced_packets, 0, tspad->pat);
++                if( tspad->has_pmt && tspad->has_pat ) {
++                    gst_buffer_insert_memory(tspad->spliced_packets, 0, tspad->pmt);
++                    gst_buffer_insert_memory(tspad->spliced_packets, 0, tspad->pat);
++                } else {
++                    GST_ERROR_OBJECT(parse,"No PMT or PAT in splicing buffer. Check incoming stream!");
++                }
 +            }
 +            tspad->pending_packets = tspad->spliced_packets;
++            tspad->has_pat = tspad->has_pmt = FALSE;
 +            tspad->pat = tspad->pmt = NULL;
 +            tspad->splicing_inprogress = FALSE;
 +            tspad->spliced_packets = NULL;
 +            g_list_foreach(tspad->program->program.stream_list, (GFunc)stream_clear_spliced_flag, NULL);
 +            ad_hoc_splice = FALSE;
-+            //gst_debug_set_threshold_from_string("3,tsparse:5", TRUE);
++            //Stop excesive debugging once spliced packets were pushed.
++            //gst_debug_set_threshold_for_name("tsparse", GST_LEVEL_DEBUG);
 +        }
 +    }
 +            
 +    if (tspad->pending_packets == NULL) {
 +        //This is the first packet after start or pushing everything out except splicing
-+        GST_DEBUG_OBJECT(parse,"Start new buffer with PCR:%" GST_TIME_FORMAT " Timestamp:%" GST_TIME_FORMAT, 
-+            GST_TIME_ARGS(PCRTIME_TO_GSTTIME(packet->pcr)),
-+            GST_TIME_ARGS(current_timestamp));
 +        tspad->pending_packets = gst_buffer_new();
-+        if (packet->afc_flags & 0x10) { //packet has PCR
++
++        if ((parse->parent.parse_private_sections==TRUE) && (packet->afc_flags & 0x10) && (packet->afc_flags & 0x40) 
++            && packet->payload_unit_start_indicator) { //packet has PCR and random-access flags and parse_private_section==TRUE
 +            GST_BUFFER_PTS(tspad->pending_packets) = current_timestamp;
 +            GST_BUFFER_OFFSET(tspad->pending_packets)=packet->offset;
++            tspad->first_pcr=tspad->last_pcr=packet->pcr;  
++            if (mpegts_parse_pes_header(packet->payload, packet->data_end - packet->payload, &pes) == PES_PARSING_OK) {
++                tspad->min_pts=tspad->max_pts=pes.PTS;
++                GST_DEBUG_OBJECT(parse,"Start new buffer with  Timestamp:%" GST_TIME_FORMAT " PCR:%" GST_TIME_FORMAT " PTS:%" GST_TIME_FORMAT " Diff:%" GST_TIME_FORMAT, 
++                    GST_TIME_ARGS(current_timestamp),
++                    GST_TIME_ARGS(PCRTIME_TO_GSTTIME(packet->pcr)),
++                    GST_TIME_ARGS(MPEGTIME_TO_GSTTIME(pes.PTS)),
++                    GST_TIME_ARGS(MPEGTIME_TO_GSTTIME(pes.PTS)-PCRTIME_TO_GSTTIME(packet->pcr)));
++            } else {
++                GST_ERROR_OBJECT(parse,"Couldn't parse PES header although random-access flag is present. afc:%02x",packet->afc_flags);
++                GST_ERROR_OBJECT(parse, "Program:%i PID:0x%04x afc:0x%02x, pusi:%i, size:%li", 
++                    tspad->program_number, packet->pid, packet->scram_afc_cc,
++                    packet->payload_unit_start_indicator,packet->data_end-packet->data_start);
++            }           
++        } else if ((parse->parent.parse_private_sections==FALSE) && packet->afc_flags &0x10) { 
++            GST_BUFFER_PTS(tspad->pending_packets) = current_timestamp;
++            GST_BUFFER_OFFSET(tspad->pending_packets)=packet->offset;
++            tspad->first_pcr=tspad->last_pcr=packet->pcr;  
++            GST_DEBUG_OBJECT(parse,"Start new buffer with  Timestamp:%" GST_TIME_FORMAT " PCR:%" GST_TIME_FORMAT, 
++                 GST_TIME_ARGS(current_timestamp),
++                 GST_TIME_ARGS(PCRTIME_TO_GSTTIME(packet->pcr)));
 +        } else {
-+            GST_WARNING_OBJECT(parse,"Starting a new buffer but first packet doesn't have PCR. Cannot set timestamp.");
++            GST_WARNING_OBJECT(parse,"Starting a new buffer but first packet doesn't have PCR and PTS. Cannot set timestamp.");
 +        }
-+    
++  
 +    }
 +    //Fix CC
 +    if (!set_packet_cc(parse,tspad, packet)) {
@@ -1340,7 +1889,27 @@ index 8e227baad..7076fc68f 100644
 +    else {
 +        actual_buffer = tspad->pending_packets;
 +    }
++    //FIXME: Store the min and max PTS for the current pending_packets buffer in tspad.
++    if((actual_buffer==tspad->pending_packets) && (parse->pcr_pid==packet->pid) && (packet->payload_unit_start_indicator==64)) {
++        //We have a video packet with PUSI set. Should have a PES packet with PTS.
++        if (mpegts_parse_pes_header(packet->payload, packet->data_end - packet->payload, &pes) == PES_PARSING_OK) {
++            if(pes.PTS<tspad->min_pts)
++                tspad->min_pts=pes.PTS;
++            if(pes.PTS>tspad->max_pts)
++                tspad->max_pts=pes.PTS;
++        }
++    }
++
++    //FIXME: Store last_pcr in tspad if packet has a PCR and it goes to pending_packets...
++    if((actual_buffer==tspad->pending_packets) && (packet->afc_flags & 0x10)) {
++        tspad->last_pcr=packet->pcr;
++    }
++
++    //FIXME: What is this???
 +    if ((GST_BUFFER_PTS_IS_VALID(actual_buffer)) && !(packet->afc_flags & 0x80) && (packet->afc_flags & 0x10) && tspad->spliced_packets==NULL) {
++        //FIXME:We are here if actual_buffer is pending_packets and packet  has discontinuity and PCR flags set....
++        //      but if we have discontinuity we just pushed out pending_packets and this packet will be the first packet couple of lines later....
++        //      pending_packets was allocated by line 1036: if (tspad->pending_packets == NULL) ...
 +        if(GST_BUFFER_PTS(actual_buffer)>current_timestamp) {
 +            GST_WARNING_OBJECT(parse,"current timestamp:%"GST_TIME_FORMAT " is before buffer start:%"GST_TIME_FORMAT,
 +                GST_TIME_ARGS(current_timestamp),GST_TIME_ARGS(GST_BUFFER_PTS(actual_buffer)));
@@ -1376,7 +1945,7 @@ index 8e227baad..7076fc68f 100644
  static GstFlowReturn
  mpegts_parse_tspad_push_section (MpegTSParse2 * parse, MpegTSParsePad * tspad,
      GstMpegtsSection * section, MpegTSPacketizerPacket * packet)
-@@ -549,17 +1112,12 @@ mpegts_parse_tspad_push_section (MpegTSParse2 * parse, MpegTSParsePad * tspad,
+@@ -549,17 +1253,12 @@ mpegts_parse_tspad_push_section (MpegTSParse2 * parse, MpegTSParsePad * tspad,
      }
    }
  
@@ -1396,7 +1965,7 @@ index 8e227baad..7076fc68f 100644
    }
  
    GST_LOG_OBJECT (parse, "Returning %s", gst_flow_get_name (ret));
-@@ -572,7 +1130,6 @@ mpegts_parse_tspad_push (MpegTSParse2 * parse, MpegTSParsePad * tspad,
+@@ -572,7 +1271,6 @@ mpegts_parse_tspad_push (MpegTSParse2 * parse, MpegTSParsePad * tspad,
  {
    GstFlowReturn ret = GST_FLOW_OK;
    MpegTSBaseProgram *bp = NULL;
@@ -1404,7 +1973,7 @@ index 8e227baad..7076fc68f 100644
    if (tspad->program_number != -1) {
      if (tspad->program)
        bp = (MpegTSBaseProgram *) tspad->program;
-@@ -580,24 +1137,15 @@ mpegts_parse_tspad_push (MpegTSParse2 * parse, MpegTSParsePad * tspad,
+@@ -580,24 +1278,15 @@ mpegts_parse_tspad_push (MpegTSParse2 * parse, MpegTSParsePad * tspad,
        bp = mpegts_base_get_program ((MpegTSBase *) parse,
            tspad->program_number);
    }
@@ -1431,7 +2000,7 @@ index 8e227baad..7076fc68f 100644
  static void
  pad_clear_for_push (GstPad * pad, MpegTSParse2 * parse)
  {
-@@ -671,7 +1219,7 @@ mpegts_parse_push (MpegTSBase * base, MpegTSPacketizerPacket * packet,
+@@ -671,7 +1360,7 @@ mpegts_parse_push (MpegTSBase * base, MpegTSPacketizerPacket * packet,
          pads_cookie = GST_ELEMENT_CAST (parse)->pads_cookie;
          srcpads = parse->srcpads;
        } else {
@@ -1440,7 +2009,7 @@ index 8e227baad..7076fc68f 100644
          /* Get next pad */
          srcpads = g_list_next (srcpads);
        }
-@@ -708,7 +1256,7 @@ mpegts_parse_inspect_packet (MpegTSBase * base, MpegTSPacketizerPacket * packet)
+@@ -708,7 +1397,7 @@ mpegts_parse_inspect_packet (MpegTSBase * base, MpegTSPacketizerPacket * packet)
      if (parse->pcr_pid == packet->pid) {
        parse->current_pcr = mpegts_packetizer_pts_to_ts (base->packetizer,
            PCRTIME_TO_GSTTIME (packet->pcr), parse->pcr_pid);
@@ -1449,7 +2018,7 @@ index 8e227baad..7076fc68f 100644
            GST_TIME_ARGS (parse->current_pcr), packet->pcr);
        if (parse->base_pcr == GST_CLOCK_TIME_NONE) {
          parse->base_pcr = parse->current_pcr;
-@@ -744,9 +1292,9 @@ drain_pending_buffers (MpegTSParse2 * parse, gboolean drain_all)
+@@ -744,9 +1433,9 @@ drain_pending_buffers (MpegTSParse2 * parse, gboolean drain_all)
  {
    GstFlowReturn ret = GST_FLOW_OK;
    GstClockTime start_ts;
@@ -1462,7 +2031,7 @@ index 8e227baad..7076fc68f 100644
    GstBuffer *buffer;
    GList *l, *end = NULL;
  
-@@ -792,7 +1340,8 @@ drain_pending_buffers (MpegTSParse2 * parse, gboolean drain_all)
+@@ -792,7 +1481,8 @@ drain_pending_buffers (MpegTSParse2 * parse, gboolean drain_all)
  
    /* Case 2 */
    if (!GST_CLOCK_TIME_IS_VALID (parse->previous_pcr)) {
@@ -1472,7 +2041,7 @@ index 8e227baad..7076fc68f 100644
  
      /* Calculate the start_ts that ends at the end timestamp */
      start_ts = GST_CLOCK_TIME_NONE;
-@@ -802,48 +1351,58 @@ drain_pending_buffers (MpegTSParse2 * parse, gboolean drain_all)
+@@ -802,48 +1492,58 @@ drain_pending_buffers (MpegTSParse2 * parse, gboolean drain_all)
          start_ts -= pcr_diff;
      }
    } else if (drain_all) {       /* Case 3 */
@@ -1544,7 +2113,7 @@ index 8e227baad..7076fc68f 100644
  
      /* Free this list node and move to the next */
      p = g_list_previous (l);
-@@ -866,7 +1425,7 @@ mpegts_parse_input_done (MpegTSBase * base, GstBuffer * buffer)
+@@ -866,7 +1566,7 @@ mpegts_parse_input_done (MpegTSBase * base, GstBuffer * buffer)
    GST_LOG_OBJECT (parse, "Received buffer %" GST_PTR_FORMAT, buffer);
  
    if (parse->current_pcr != GST_CLOCK_TIME_NONE) {
@@ -1576,10 +2145,20 @@ index 64f9d0bb7..0233b70e6 100644
  }
  
 diff --git a/gst/mpegtsmux/mpegtsmux.c b/gst/mpegtsmux/mpegtsmux.c
-index 58b1009bf..53f749846 100644
+index 58b1009bf..b93c5aacb 100644
 --- a/gst/mpegtsmux/mpegtsmux.c
 +++ b/gst/mpegtsmux/mpegtsmux.c
-@@ -122,10 +122,10 @@ enum
+@@ -115,17 +115,19 @@ enum
+   PROP_PAT_INTERVAL,
+   PROP_PMT_INTERVAL,
+   PROP_ALIGNMENT,
+-  PROP_SI_INTERVAL
++  PROP_SI_INTERVAL,
++  PROP_AUDIO_TYPE,
++  PROP_AUDIO_LANG
+ };
+ 
+ #define MPEGTSMUX_DEFAULT_ALIGNMENT    -1
  #define MPEGTSMUX_DEFAULT_M2TS         FALSE
  
  static GstStaticPadTemplate mpegtsmux_sink_factory =
@@ -1592,7 +2171,7 @@ index 58b1009bf..53f749846 100644
          "parsed = (boolean) TRUE, "
          "mpegversion = (int) { 1, 2, 4 }, "
          "systemstream = (boolean) false; "
-@@ -156,6 +156,7 @@ static GstStaticPadTemplate mpegtsmux_sink_factory =
+@@ -156,6 +158,7 @@ static GstStaticPadTemplate mpegtsmux_sink_factory =
          "channels = (int) [1, 8], "
          "channel-mapping-family = (int) {0, 1};"
          "subpicture/x-dvb; application/x-teletext; meta/x-klv, parsed=true;"
@@ -1600,7 +2179,7 @@ index 58b1009bf..53f749846 100644
          "image/x-jpc, profile = (int)[0, 49151];"));
  
  static GstStaticPadTemplate mpegtsmux_src_factory =
-@@ -201,6 +202,7 @@ static gboolean mpegtsmux_send_event (GstElement * element, GstEvent * event);
+@@ -201,6 +204,7 @@ static gboolean mpegtsmux_send_event (GstElement * element, GstEvent * event);
  static void mpegtsmux_set_header_on_caps (MpegTsMux * mux);
  static gboolean mpegtsmux_src_event (GstPad * pad, GstObject * parent,
      GstEvent * event);
@@ -1608,10 +2187,23 @@ index 58b1009bf..53f749846 100644
  
  #if 0
  static void mpegtsmux_set_index (GstElement * element, GstIndex * index);
-@@ -307,6 +309,106 @@ mpegtsmux_class_init (MpegTsMuxClass * klass)
+@@ -305,6 +309,117 @@ mpegtsmux_class_init (MpegTsMuxClass * klass)
+           "Set the interval (in ticks of the 90kHz clock) for writing out the Service"
+           "Information tables", 1, G_MAXUINT, TSMUX_DEFAULT_SI_INTERVAL,
            G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS));
- }
- 
++
++  g_object_class_install_property (G_OBJECT_CLASS (klass), PROP_AUDIO_TYPE,
++      g_param_spec_boxed ("audio-type", "Audio Type",
++          "A GstStructure specifies the type of audio elementary streams in programs",
++          GST_TYPE_STRUCTURE, G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS));
++
++  g_object_class_install_property (G_OBJECT_CLASS (klass), PROP_AUDIO_LANG,
++      g_param_spec_boxed ("audio-lang", "Audio language",
++          "A GstStructure specifies the language code of the audio elementary streams in programs",
++          GST_TYPE_STRUCTURE, G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS));
++}
++
++
 +static gint 
 +mpegtsmux_compare_timestamps(MpegTsMux *mux, GstCollectData *data1, GstCollectData *data2)
 +{
@@ -1710,12 +2302,10 @@ index 58b1009bf..53f749846 100644
 +        return mpegtsmux_collected_buffer(pads, NULL, NULL, user_data);
 +    }
 +
-+}
-+
+ }
+ 
  static void
- mpegtsmux_init (MpegTsMux * mux)
- {
-@@ -318,16 +420,26 @@ mpegtsmux_init (MpegTsMux * mux)
+@@ -318,16 +433,26 @@ mpegtsmux_init (MpegTsMux * mux)
    gst_element_add_pad (GST_ELEMENT (mux), mux->srcpad);
  
    mux->collect = gst_collect_pads_new ();
@@ -1742,7 +2332,55 @@ index 58b1009bf..53f749846 100644
    mux->adapter = gst_adapter_new ();
    mux->out_adapter = gst_adapter_new ();
  
-@@ -633,6 +745,7 @@ mpegtsmux_create_stream (MpegTsMux * mux, MpegTsPadData * ts_data)
+@@ -511,7 +636,31 @@ gst_mpegtsmux_set_property (GObject * object, guint prop_id,
+       mux->si_interval = g_value_get_uint (value);
+       tsmux_set_si_interval (mux->tsmux, mux->si_interval);
+       break;
+-    default:
++    case PROP_AUDIO_TYPE:
++    {
++      const GstStructure *s = gst_value_get_structure(value);
++      if (mux->audio_type) {
++        gst_structure_free(mux->audio_type);
++      }
++      if (s)
++        mux->audio_type=gst_structure_copy(s);
++      else
++        mux->audio_type=NULL;
++      break;
++    }
++    case PROP_AUDIO_LANG:
++    {
++      const GstStructure *s = gst_value_get_structure(value);
++      if (mux->audio_lang) {
++        gst_structure_free(mux->audio_lang);
++      }
++      if (s)
++        mux->audio_lang=gst_structure_copy(s);
++      else
++        mux->audio_lang=NULL;
++      break;
++    }
++   default:
+       G_OBJECT_WARN_INVALID_PROPERTY_ID (object, prop_id, pspec);
+       break;
+   }
+@@ -542,7 +691,13 @@ gst_mpegtsmux_get_property (GObject * object, guint prop_id,
+     case PROP_SI_INTERVAL:
+       g_value_set_uint (value, mux->si_interval);
+       break;
+-    default:
++    case PROP_AUDIO_TYPE:
++      gst_value_set_structure (value, mux->audio_type);
++      break;
++   case PROP_AUDIO_LANG:
++      gst_value_set_structure (value, mux->audio_lang);
++      break;
++   default:
+       G_OBJECT_WARN_INVALID_PROPERTY_ID (object, prop_id, pspec);
+       break;
+   }
+@@ -633,6 +788,7 @@ mpegtsmux_create_stream (MpegTsMux * mux, MpegTsPadData * ts_data)
      st = TSMUX_ST_VIDEO_HEVC;
    } else if (strcmp (mt, "audio/mpeg") == 0) {
      gint mpegversion;
@@ -1750,7 +2388,7 @@ index 58b1009bf..53f749846 100644
  
      if (!gst_structure_get_int (s, "mpegversion", &mpegversion)) {
        GST_ERROR_OBJECT (pad, "caps missing mpegversion");
-@@ -664,6 +777,17 @@ mpegtsmux_create_stream (MpegTsMux * mux, MpegTsPadData * ts_data)
+@@ -664,6 +820,21 @@ mpegtsmux_create_stream (MpegTsMux * mux, MpegTsPadData * ts_data)
          GST_WARNING_OBJECT (pad, "unsupported mpegversion %d", mpegversion);
          goto not_negotiated;
      }
@@ -1758,17 +2396,21 @@ index 58b1009bf..53f749846 100644
 +        GST_ERROR_OBJECT(pad, "caps missing layer");
 +        goto not_negotiated;
 +    }
-+
++    if(mux->audio_type && gst_structure_has_field(mux->audio_type,GST_PAD_NAME(pad))) {
++        gst_structure_get_int(mux->audio_type,GST_PAD_NAME(pad),&st);
++        GST_INFO_OBJECT(mux,"Stream type of %s is set to %i",GST_PAD_NAME(pad),st);
++    }
++/*
 +    switch (layer) {
 +    case 2:
 +        st = TSMUX_ST_AUDIO_MPEG2;
 +        break;
 +    }
-+
++*/
    } else if (strcmp (mt, "video/mpeg") == 0) {
      gint mpegversion;
  
-@@ -692,7 +816,9 @@ mpegtsmux_create_stream (MpegTsMux * mux, MpegTsPadData * ts_data)
+@@ -692,7 +863,9 @@ mpegtsmux_create_stream (MpegTsMux * mux, MpegTsPadData * ts_data)
      st = TSMUX_ST_PS_TELETEXT;
      /* needs a particularly sized layout */
      ts_data->prepare_func = mpegtsmux_prepare_teletext;
@@ -1779,7 +2421,21 @@ index 58b1009bf..53f749846 100644
      guint8 channels, mapping_family, stream_count, coupled_count;
      guint8 channel_mapping[256];
  
-@@ -920,7 +1046,7 @@ not_negotiated:
+@@ -843,6 +1016,13 @@ mpegtsmux_create_stream (MpegTsMux * mux, MpegTsPadData * ts_data)
+     ts_data->prepare_data = private_data;
+     ts_data->free_func = mpegtsmux_free_jpeg2000;
+   }
++  if(mux->audio_lang && gst_structure_has_field(mux->audio_lang,GST_PAD_NAME(pad))) {
++        const char *lang=gst_structure_get_string(mux->audio_lang,GST_PAD_NAME(pad));   
++        if(ts_data->language)
++            g_free(ts_data->language);
++        ts_data->language=g_strdup(lang);
++        GST_INFO_OBJECT(mux,"Language of %s is set to %s",GST_PAD_NAME(pad),lang);
++  }
+ 
+   if (st != TSMUX_ST_RESERVED) {
+     ts_data->stream = tsmux_create_stream (mux->tsmux, st, ts_data->pid,
+@@ -920,7 +1100,7 @@ not_negotiated:
  }
  
  static GstFlowReturn
@@ -1788,7 +2444,7 @@ index 58b1009bf..53f749846 100644
  {
    GstFlowReturn ret = GST_FLOW_OK;
    GSList *walk = mux->collect->data;
-@@ -930,7 +1056,7 @@ mpegtsmux_create_streams (MpegTsMux * mux)
+@@ -930,7 +1110,7 @@ mpegtsmux_create_streams (MpegTsMux * mux)
      GstCollectData *c_data = (GstCollectData *) walk->data;
      MpegTsPadData *ts_data = (MpegTsPadData *) walk->data;
      gchar *name = NULL;
@@ -1797,7 +2453,7 @@ index 58b1009bf..53f749846 100644
  
      walk = g_slist_next (walk);
  
-@@ -973,6 +1099,7 @@ mpegtsmux_create_streams (MpegTsMux * mux)
+@@ -973,6 +1153,7 @@ mpegtsmux_create_streams (MpegTsMux * mux)
            ts_data->pid, ts_data->prog_id);
  
        tsmux_program_set_pcr_stream (ts_data->prog, ts_data->stream);
@@ -1805,7 +2461,7 @@ index 58b1009bf..53f749846 100644
      }
  
      if (ts_data->stream == NULL) {
-@@ -994,6 +1121,19 @@ mpegtsmux_create_streams (MpegTsMux * mux)
+@@ -994,6 +1175,19 @@ mpegtsmux_create_streams (MpegTsMux * mux)
        }
      }
      g_free (pcr_name);
@@ -1825,7 +2481,7 @@ index 58b1009bf..53f749846 100644
    }
  
    return GST_FLOW_OK;
-@@ -1348,18 +1488,6 @@ mpegtsmux_collected_buffer (GstCollectPads * pads, GstCollectData * data,
+@@ -1348,18 +1542,6 @@ mpegtsmux_collected_buffer (GstCollectPads * pads, GstCollectData * data,
  
    GST_DEBUG_OBJECT (mux, "Pads collected");
  
@@ -1844,7 +2500,7 @@ index 58b1009bf..53f749846 100644
  
    if (G_UNLIKELY (best == NULL)) {
      /* EOS */
-@@ -1372,7 +1500,7 @@ mpegtsmux_collected_buffer (GstCollectPads * pads, GstCollectData * data,
+@@ -1372,7 +1554,7 @@ mpegtsmux_collected_buffer (GstCollectPads * pads, GstCollectData * data,
      if (buf)
        gst_buffer_unref (buf);
  
@@ -1853,8 +2509,21 @@ index 58b1009bf..53f749846 100644
    }
  
    prog = best->prog;
+diff --git a/gst/mpegtsmux/mpegtsmux.h b/gst/mpegtsmux/mpegtsmux.h
+index 169892c79..f42607ae7 100644
+--- a/gst/mpegtsmux/mpegtsmux.h
++++ b/gst/mpegtsmux/mpegtsmux.h
+@@ -139,6 +139,8 @@ struct MpegTsMux {
+   guint pmt_interval;
+   gint alignment;
+   guint si_interval;
++  GstStructure *audio_type;
++  GstStructure *audio_lang;
+ 
+   /* state */
+   gboolean first;
 diff --git a/gst/mpegtsmux/tsmux/tsmux.c b/gst/mpegtsmux/tsmux/tsmux.c
-index 6fa9e0d12..2d42f062b 100644
+index 6fa9e0d12..8bb0b7fab 100644
 --- a/gst/mpegtsmux/tsmux/tsmux.c
 +++ b/gst/mpegtsmux/tsmux/tsmux.c
 @@ -104,7 +104,7 @@
@@ -1862,7 +2531,7 @@ index 6fa9e0d12..2d42f062b 100644
   * this is the amount 'in advance' of the stream that the PCR sits.
   * 1/8 second atm */
 -#define TSMUX_PCR_OFFSET (TSMUX_CLOCK_FREQ / 8)
-+#define TSMUX_PCR_OFFSET (TSMUX_CLOCK_FREQ / 2)
++#define TSMUX_PCR_OFFSET (TSMUX_CLOCK_FREQ )
  
  /* Times per second to write PCR */
  #define TSMUX_DEFAULT_PCR_FREQ (25)
