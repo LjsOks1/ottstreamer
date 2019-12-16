@@ -1128,7 +1128,7 @@ index 0cf83a60d..bc5b9e830 100644
  typedef enum {
    PACKET_BAD       = FALSE,
 diff --git a/gst/mpegtsdemux/mpegtsparse.c b/gst/mpegtsdemux/mpegtsparse.c
-index 8e227baad..d8837fe91 100644
+index 8e227baad..f6ba63932 100644
 --- a/gst/mpegtsdemux/mpegtsparse.c
 +++ b/gst/mpegtsdemux/mpegtsparse.c
 @@ -33,6 +33,8 @@
@@ -1276,7 +1276,7 @@ index 8e227baad..d8837fe91 100644
 +{
 +    gboolean res = TRUE;
 +    MpegTSParse2 *parse = GST_MPEGTS_PARSE(parent);
-+    GST_INFO_OBJECT(parse, "Got event %s",
++    GST_LOG_OBJECT(parse, "Got event %s",
 +        gst_event_type_get_name(GST_EVENT_TYPE(event)));
 +
 +    switch (GST_EVENT_TYPE(event)) {
