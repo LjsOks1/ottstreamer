@@ -73,170 +73,6 @@ index f264e33a7..9765fdd27 100644
  
  libgstmpegts_@GST_API_VERSION@includedir = \
  	$(includedir)/gstreamer-@GST_API_VERSION@/gst/mpegts
-diff --git a/gst-libs/gst/mpegts/gst-scte-section.c b/gst-libs/gst/mpegts/gst-scte-section.c
-new file mode 100644
-index 000000000..fcdafbc48
---- /dev/null
-+++ b/gst-libs/gst/mpegts/gst-scte-section.c
-@@ -0,0 +1,158 @@
-+/*
-+  * Copyright (C) 2019 Lajos Okos
-+  *
-+  * Authors:
-+  *   Lajos Okos <lajos.okos@gmail.com>
-+  *
-+  * This library is free software; you can redistribute it and/or
-+  * modify it under the terms of the GNU Library General Public
-+  * License as published by the Free Software Foundation; either
-+  * version 2 of the License, or (at your option) any later version.
-+  *
-+  * This library is distributed in the hope that it will be useful,
-+  * but WITHOUT ANY WARRANTY; without even the implied warranty of
-+  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
-+  * Library General Public License for more details.
-+  *
-+  * You should have received a copy of the GNU Library General Public
-+  * License along with this library; if not, write to the
-+  * Free Software Foundation, Inc., 51 Franklin St, Fifth Floor,
-+  * Boston, MA 02110-1301, USA.
-+*/
-+
-+
-+#ifdef HAVE_CONFIG_H
-+#include "config.h"
-+#endif
-+
-+#include <string.h>
-+#include <stdlib.h>
-+ 
-+#include "mpegts.h"
-+#include "gstmpegts-private.h"
-+
-+static void
-+_gst_mpegts_scte_splice_command_free (GstMpegtsScteSpliceInsert *spinsert)
-+{
-+   //g_ptr_array_unref (spinfo->???);
-+   //g_ptr_array_unref (spinfo->descriptors);
-+   g_slice_free (GstMpegtsScteSpliceInsert, spinsert);
-+}
-+
-+static gpointer
-+_parse_scte_splice_info (GstMpegtsSection * section)
-+{
-+   GstMpegtsScteSpliceInfo *spinfo = NULL;
-+   guint8 *data, *end;
-+    
-+   spinfo = g_slice_new0 (GstMpegtsScteSpliceInfo);
-+ 
-+   data = section->data;
-+   end = data + section->section_length;
-+   spinfo->table_id=*data++;
-+   spinfo->section_syntax_indicator=*data>>7;
-+   spinfo->private_indicator=(*data>>6)&0x01;
-+   spinfo->section_length=(*data&0x0f*256) + *(data+1);
-+   data+=2;
-+   spinfo->protocol_version=*data++;
-+   spinfo->encrypted_packet=*data>>7;
-+   spinfo->encryption_algorith=(*data>>1)&0x3f;
-+   spinfo->pts_adjustment=(guint64)(*data&0x01)<<32|*(data+1)<<24|*(data+2)<<16|*(data+3)<<8|*(data+4);
-+   data+=5;
-+   spinfo->cw_index=*data++;
-+   spinfo->tier=*data<<4|(*(data+1)&0xf0)>>4;
-+   spinfo->splice_command_length=(*(data+1)&0x0f)<<4|*(data+2);
-+   data+=3;
-+   spinfo->splice_command_type=*data++;
-+   switch (spinfo->splice_command_type) {
-+      case 0x05: {  //Splice Insert
-+        GstMpegtsScteSpliceInsert *spinsert = &spinfo->splice_insert;
-+        spinsert->splice_event_id=*data<<24|*(data+1)<<16|*(data+2)<<8|*(data+3);
-+        data+=4;
-+        spinsert->splice_event_cancel_indicator=*data++>>7;
-+        spinsert->out_of_network_indicator=*data>>7;
-+        spinsert->program_splice_flag=(*data>>6)&0x01;
-+        spinsert->duration_flag=(*data>>5)&0x01;
-+        spinsert->splice_immediate_flag=(*data++>>4)&0x01;
-+        spinsert->time_specified_flag=*data>>7;
-+        spinsert->pts_time=(((guint64)((*data)&0x01)<<32)|(*(data+1)<<24)|(*(data+2)<<16)|(*(data+3)<<8)|*(data+4)) & 0x1ffffffff;
-+        data+=5;
-+        spinsert->unique_program_id=*data<<8|*(data+1);
-+        data+=2;
-+        spinsert->avail_num=*data++;
-+        spinsert->avails_expected=*data++;
-+     }
-+      break;
-+      case 0x00:   //Splice Null
-+      default: {}    //Unkown command
-+        //spinfo->splice_command=NULL;
-+   }
-+
-+   return (gpointer) spinfo;
-+}
-+
-+static void
-+_gst_mpegts_scte_splice_info_free (GstMpegtsScteSpliceInfo * spinfo)
-+ {
-+   //g_ptr_array_unref (spinfo->???);
-+   //g_ptr_array_unref (spinfo->descriptors);
-+   g_slice_free (GstMpegtsScteSpliceInfo, spinfo);
-+}
-+
-+const GstMpegtsScteSpliceInfo *
-+gst_mpegts_section_get_scte_splice_info (GstMpegtsSection * section)
-+ {
-+   g_return_val_if_fail (section->section_type == GST_MPEGTS_SECTION_SCTE_SPLICING,
-+       NULL);
-+   g_return_val_if_fail (section->cached_parsed || section->data, NULL);
-+ 
-+   if (!section->cached_parsed)
-+     section->cached_parsed =
-+         __common_section_checks (section, 3, _parse_scte_splice_info,
-+         (GDestroyNotify) _gst_mpegts_scte_splice_info_free);
-+ 
-+   return (const GstMpegtsScteSpliceInfo *) section->cached_parsed;
-+}
-+
-+/* 
-+GstStructure should have the below fields:
-+    splice-event-id (uint) : Must be present. Repeting IDs are ignored by downstream elements!!!
-+    out-of-network-indicator (boolean) : 1 means exit from the network feed, 0 means return
-+    pts-time (uint64) : PTS when splicing should happen
-+    program-number (uint) : program number the event belons to. Used in mpegtsbase.c
-+*/
-+
-+const GstMpegtsScteSpliceInfo*
-+gst_mpegts_set_scte_splice_info(GstStructure *s)
-+{
-+    GstMpegtsScteSpliceInfo *spinfo = NULL;
-+    GstMpegtsScteSpliceInsert *spinsert = NULL;
-+
-+    spinfo = g_slice_new0(GstMpegtsScteSpliceInfo);
-+    spinsert = &spinfo->splice_insert;
-+
-+    spinfo->table_id = 0xfc; // Defined by the standard
-+    spinfo->section_syntax_indicator = 0; // Defined by the standard
-+    spinfo->private_indicator = 0; // Defined by the standard
-+    spinfo->section_length = 0; // FIXME: Should be better calculated!!!
-+    spinfo->protocol_version = 0; // Defined by the standard
-+    spinfo->encrypted_packet = 0; // Defined by the standard
-+    spinfo->encryption_algorith = 0; // Defined by the standard
-+    spinfo->pts_adjustment = 0;
-+    spinfo->cw_index = 0;
-+    spinfo->tier = 0xfff;
-+    spinfo->splice_command_length = 0; // FIXME: Should be better calculated!!!
-+    spinfo->splice_command_type = 0x05;
-+    gst_structure_get_uint(s, "splice-event-id", &spinsert->splice_event_id);
-+    spinsert->splice_event_cancel_indicator = 0; // Not implemented yet. FIXME: Should be implemented sooner or later.
-+    gst_structure_get_boolean(s,"out-of-network-indicator",&spinsert->out_of_network_indicator);
-+    spinsert->program_splice_flag = 1;  // Program splice mode
-+    spinsert->duration_flag = 0;  // No break duration ios indicated in the event
-+    spinsert->splice_immediate_flag = 0;  // Splice time is present
-+    spinsert->time_specified_flag = 1;  // PTS present
-+    gst_structure_get_uint64(s,"pts-time",&spinsert->pts_time);
-+    spinsert->unique_program_id = 0;
-+    spinsert->avail_num = 0;
-+    spinsert->avails_expected = 0;
-+    return (const GstMpegtsScteSpliceInfo*)spinfo;
-+}
 diff --git a/gst-libs/gst/mpegts/gst-scte-section.h b/gst-libs/gst/mpegts/gst-scte-section.h
 index babab342d..45d948993 100644
 --- a/gst-libs/gst/mpegts/gst-scte-section.h
@@ -369,11 +205,35 @@ index 2ee420926..af07ea95a 100644
  ]
  
  mpegts_headers = [
+diff --git a/gst/mpegtsdemux/meson.build b/gst/mpegtsdemux/meson.build
+index 4cd448c65..09174cc74 100644
+--- a/gst/mpegtsdemux/meson.build
++++ b/gst/mpegtsdemux/meson.build
+@@ -12,7 +12,8 @@ gstmpegtsdemux = library('gstmpegtsdemux',
+   c_args : gst_plugins_bad_args + ['-DGST_USE_UNSTABLE_API'],
+   include_directories : [configinc, libsinc],
+   dependencies : [gstcodecparsers_dep, gstmpegts_dep, gsttag_dep,
+-		  gstpbutils_dep, gstaudio_dep, gstbase_dep, mathlib],
++                  gstpbutils_dep, gstaudio_dep, gstbase_dep, libm],
+   install : true,
+   install_dir : plugins_install_dir,
+ )
++pkgconfig.generate(gstmpegtsdemux, install_dir : plugins_pkgconfig_install_dir)
 diff --git a/gst/mpegtsdemux/mpegtsbase.c b/gst/mpegtsdemux/mpegtsbase.c
-index 1a68f8691..cd3387116 100644
+index 5180c2ee5..cd3387116 100644
 --- a/gst/mpegtsdemux/mpegtsbase.c
 +++ b/gst/mpegtsdemux/mpegtsbase.c
-@@ -93,6 +93,8 @@ static gboolean mpegts_base_get_tags_from_eit (MpegTSBase * base,
+@@ -83,12 +83,18 @@ static GstFlowReturn mpegts_base_chain (GstPad * pad, GstObject * parent,
+     GstBuffer * buf);
+ static gboolean mpegts_base_sink_event (GstPad * pad, GstObject * parent,
+     GstEvent * event);
++static gboolean mpegts_base_sink_query (GstPad * pad, GstObject * parent,
++    GstQuery * query);
++static gboolean mpegts_base_default_sink_query (MpegTSBase * base,
++    GstQuery * query);
+ static GstStateChangeReturn mpegts_base_change_state (GstElement * element,
+     GstStateChange transition);
+ static gboolean mpegts_base_get_tags_from_eit (MpegTSBase * base,
      GstMpegtsSection * section);
  static gboolean mpegts_base_parse_atsc_mgt (MpegTSBase * base,
      GstMpegtsSection * section);
@@ -382,15 +242,16 @@ index 1a68f8691..cd3387116 100644
  static gboolean remove_each_program (gpointer key, MpegTSBaseProgram * program,
      MpegTSBase * base);
  
-@@ -141,7 +143,6 @@ mpegts_base_class_init (MpegTSBaseClass * klass)
+@@ -137,7 +143,7 @@ mpegts_base_class_init (MpegTSBaseClass * klass)
        g_param_spec_boolean ("parse-private-sections", "Parse private sections",
            "Parse private sections", FALSE,
            G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS));
 -
-   klass->sink_query = GST_DEBUG_FUNCPTR (mpegts_base_default_sink_query);
++  klass->sink_query = GST_DEBUG_FUNCPTR (mpegts_base_default_sink_query);
  }
  
-@@ -155,6 +156,7 @@ mpegts_base_set_property (GObject * object, guint prop_id,
+ static void
+@@ -150,6 +156,7 @@ mpegts_base_set_property (GObject * object, guint prop_id,
      case PROP_PARSE_PRIVATE_SECTIONS:
        base->parse_private_sections = g_value_get_boolean (value);
        break;
@@ -398,7 +259,15 @@ index 1a68f8691..cd3387116 100644
      default:
        G_OBJECT_WARN_INVALID_PROPERTY_ID (object, prop_id, pspec);
    }
-@@ -249,7 +251,7 @@ mpegts_base_init (MpegTSBase * base)
+@@ -228,6 +235,7 @@ mpegts_base_init (MpegTSBase * base)
+       mpegts_base_sink_activate_mode);
+   gst_pad_set_chain_function (base->sinkpad, mpegts_base_chain);
+   gst_pad_set_event_function (base->sinkpad, mpegts_base_sink_event);
++  gst_pad_set_query_function (base->sinkpad, mpegts_base_sink_query);
+   gst_element_add_pad (GST_ELEMENT (base), base->sinkpad);
+ 
+   base->disposed = FALSE;
+@@ -243,7 +251,7 @@ mpegts_base_init (MpegTSBase * base)
  
    base->push_data = TRUE;
    base->push_section = TRUE;
@@ -407,7 +276,7 @@ index 1a68f8691..cd3387116 100644
    mpegts_base_reset (base);
  }
  
-@@ -440,6 +442,19 @@ mpegts_base_get_program (MpegTSBase * base, gint program_number)
+@@ -434,6 +442,19 @@ mpegts_base_get_program (MpegTSBase * base, gint program_number)
    return program;
  }
  
@@ -427,7 +296,7 @@ index 1a68f8691..cd3387116 100644
  static MpegTSBaseProgram *
  mpegts_base_steal_program (MpegTSBase * base, gint program_number)
  {
-@@ -473,6 +488,7 @@ mpegts_base_free_program (MpegTSBaseProgram * program)
+@@ -467,6 +488,7 @@ mpegts_base_free_program (MpegTSBaseProgram * program)
    if (program->pmt) {
      gst_mpegts_section_unref (program->section);
      program->pmt = NULL;
@@ -435,7 +304,7 @@ index 1a68f8691..cd3387116 100644
    }
  
    /* FIXME FIXME FIXME FREE STREAM OBJECT ! */
-@@ -562,7 +578,8 @@ mpegts_base_program_add_stream (MpegTSBase * base,
+@@ -556,7 +578,8 @@ mpegts_base_program_add_stream (MpegTSBase * base,
      GST_DEBUG ("PID 0x%04x, registration_id %" SAFE_FOURCC_FORMAT,
          bstream->pid, SAFE_FOURCC_ARGS (bstream->registration_id));
    }
@@ -445,7 +314,7 @@ index 1a68f8691..cd3387116 100644
    program->streams[pid] = bstream;
    program->stream_list = g_list_append (program->stream_list, bstream);
  
-@@ -708,6 +725,7 @@ _stream_is_private_section (GstMpegtsPMTStream * stream)
+@@ -702,6 +725,7 @@ _stream_is_private_section (GstMpegtsPMTStream * stream)
      case GST_MPEGTS_STREAM_TYPE_DSMCC_D:
      case GST_MPEGTS_STREAM_TYPE_SL_FLEXMUX_SECTIONS:
      case GST_MPEGTS_STREAM_TYPE_METADATA_SECTIONS:
@@ -453,7 +322,7 @@ index 1a68f8691..cd3387116 100644
        /* known PSI streams */
        return TRUE;
      default:
-@@ -898,6 +916,7 @@ mpegts_base_activate_program (MpegTSBase * base, MpegTSBaseProgram * program,
+@@ -892,6 +916,7 @@ mpegts_base_activate_program (MpegTSBase * base, MpegTSBaseProgram * program,
    program->pmt = pmt;
    program->pmt_pid = pmt_pid;
    program->pcr_pid = pmt->pcr_pid;
@@ -461,7 +330,7 @@ index 1a68f8691..cd3387116 100644
  
    /* extract top-level registration_id if present */
    program->registration_id =
-@@ -953,7 +972,7 @@ mpegts_base_apply_pat (MpegTSBase * base, GstMpegtsSection * section)
+@@ -947,7 +972,7 @@ mpegts_base_apply_pat (MpegTSBase * base, GstMpegtsSection * section)
    if (G_UNLIKELY (pat == NULL))
      return FALSE;
  
@@ -470,7 +339,7 @@ index 1a68f8691..cd3387116 100644
  
    /* Applying a new PAT does two things:
     * * It adds the new programs to the list of programs this element handles
-@@ -965,6 +984,7 @@ mpegts_base_apply_pat (MpegTSBase * base, GstMpegtsSection * section)
+@@ -959,6 +984,7 @@ mpegts_base_apply_pat (MpegTSBase * base, GstMpegtsSection * section)
  
    old_pat = base->pat;
    base->pat = pat;
@@ -478,7 +347,7 @@ index 1a68f8691..cd3387116 100644
  
    GST_LOG ("Activating new Program Association Table");
    /* activate the new table */
-@@ -1153,8 +1173,8 @@ mpegts_base_handle_psi (MpegTSBase * base, GstMpegtsSection * section)
+@@ -1147,8 +1173,8 @@ mpegts_base_handle_psi (MpegTSBase * base, GstMpegtsSection * section)
  {
    gboolean post_message = TRUE;
  
@@ -489,7 +358,7 @@ index 1a68f8691..cd3387116 100644
  
    switch (section->section_type) {
      case GST_MPEGTS_SECTION_PAT:
-@@ -1176,6 +1196,11 @@ mpegts_base_handle_psi (MpegTSBase * base, GstMpegtsSection * section)
+@@ -1170,6 +1196,11 @@ mpegts_base_handle_psi (MpegTSBase * base, GstMpegtsSection * section)
      case GST_MPEGTS_SECTION_ATSC_MGT:
        post_message = mpegts_base_parse_atsc_mgt (base, section);
        break;
@@ -501,7 +370,7 @@ index 1a68f8691..cd3387116 100644
      default:
        break;
    }
-@@ -1211,6 +1236,20 @@ mpegts_base_parse_atsc_mgt (MpegTSBase * base, GstMpegtsSection * section)
+@@ -1205,6 +1236,20 @@ mpegts_base_parse_atsc_mgt (MpegTSBase * base, GstMpegtsSection * section)
    return TRUE;
  }
  
@@ -522,7 +391,7 @@ index 1a68f8691..cd3387116 100644
  static gboolean
  mpegts_base_get_tags_from_eit (MpegTSBase * base, GstMpegtsSection * section)
  {
-@@ -1321,7 +1360,7 @@ mpegts_base_sink_event (GstPad * pad, GstObject * parent, GstEvent * event)
+@@ -1315,7 +1360,7 @@ mpegts_base_sink_event (GstPad * pad, GstObject * parent, GstEvent * event)
    switch (GST_EVENT_TYPE (event)) {
      case GST_EVENT_SEGMENT:
        gst_event_copy_segment (event, &base->segment);
@@ -531,7 +400,31 @@ index 1a68f8691..cd3387116 100644
            &base->segment);
        /* Check if we need to switch PCR/PTS handling */
        if (base->segment.format == GST_FORMAT_TIME) {
-@@ -1388,6 +1427,7 @@ mpegts_base_chain (GstPad * pad, GstObject * parent, GstBuffer * buf)
+@@ -1356,6 +1401,23 @@ mpegts_base_sink_event (GstPad * pad, GstObject * parent, GstEvent * event)
+   return res;
+ }
+ 
++static gboolean
++mpegts_base_default_sink_query (MpegTSBase * base, GstQuery * query)
++{
++  return gst_pad_query_default (base->sinkpad, GST_OBJECT (base), query);
++}
++
++static gboolean
++mpegts_base_sink_query (GstPad * pad, GstObject * parent, GstQuery * query)
++{
++  MpegTSBase *base = GST_MPEGTS_BASE (parent);
++
++  GST_DEBUG_OBJECT (base, "Got query %s",
++      gst_query_type_get_name (GST_QUERY_TYPE (query)));
++
++  return GST_MPEGTS_BASE_GET_CLASS (base)->sink_query (base, query);
++}
++
+ static GstFlowReturn
+ mpegts_base_chain (GstPad * pad, GstObject * parent, GstBuffer * buf)
+ {
+@@ -1365,6 +1427,7 @@ mpegts_base_chain (GstPad * pad, GstObject * parent, GstBuffer * buf)
    MpegTSPacketizer2 *packetizer;
    MpegTSPacketizerPacket packet;
    MpegTSBaseClass *klass;
@@ -539,7 +432,7 @@ index 1a68f8691..cd3387116 100644
  
    base = GST_MPEGTS_BASE (parent);
    klass = GST_MPEGTS_BASE_GET_CLASS (base);
-@@ -1396,7 +1436,7 @@ mpegts_base_chain (GstPad * pad, GstObject * parent, GstBuffer * buf)
+@@ -1373,7 +1436,7 @@ mpegts_base_chain (GstPad * pad, GstObject * parent, GstBuffer * buf)
  
    if (klass->input_done)
      gst_buffer_ref (buf);
@@ -548,7 +441,7 @@ index 1a68f8691..cd3387116 100644
    if (GST_BUFFER_IS_DISCONT (buf)) {
      GST_DEBUG_OBJECT (base, "Got DISCONT buffer, flushing");
      res = mpegts_base_drain (base);
-@@ -1404,9 +1444,9 @@ mpegts_base_chain (GstPad * pad, GstObject * parent, GstBuffer * buf)
+@@ -1381,9 +1444,9 @@ mpegts_base_chain (GstPad * pad, GstObject * parent, GstBuffer * buf)
        return res;
  
      mpegts_base_flush (base, FALSE);
@@ -561,7 +454,7 @@ index 1a68f8691..cd3387116 100644
      if (base->mode == BASE_MODE_PUSHING
          && base->segment.format == GST_FORMAT_TIME) {
        mpegts_packetizer_flush (base->packetizer, TRUE);
-@@ -1414,6 +1454,15 @@ mpegts_base_chain (GstPad * pad, GstObject * parent, GstBuffer * buf)
+@@ -1391,6 +1454,15 @@ mpegts_base_chain (GstPad * pad, GstObject * parent, GstBuffer * buf)
      } else
        mpegts_packetizer_flush (base->packetizer, FALSE);
    }
@@ -578,7 +471,7 @@ index 1a68f8691..cd3387116 100644
    mpegts_packetizer_push (base->packetizer, buf);
  
 diff --git a/gst/mpegtsdemux/mpegtsbase.h b/gst/mpegtsdemux/mpegtsbase.h
-index 5775cdd66..0deb25bb0 100644
+index 80a454f68..0deb25bb0 100644
 --- a/gst/mpegtsdemux/mpegtsbase.h
 +++ b/gst/mpegtsdemux/mpegtsbase.h
 @@ -32,6 +32,7 @@
@@ -632,8 +525,18 @@ index 5775cdd66..0deb25bb0 100644
  };
  
  struct _MpegTSBaseClass {
+@@ -211,6 +219,9 @@ struct _MpegTSBaseClass {
+   void (*nit_info) (GstStructure *nit);
+   void (*sdt_info) (GstStructure *sdt);
+   void (*eit_info) (GstStructure *eit);
++
++  /* takes ownership of @query */
++  gboolean (*sink_query) (MpegTSBase *base, GstQuery * query);
+ };
+ 
+ #define MPEGTS_BIT_SET(field, offs)    ((field)[(offs) >> 3] |=  (1 << ((offs) & 0x7)))
 diff --git a/gst/mpegtsdemux/mpegtspacketizer.c b/gst/mpegtsdemux/mpegtspacketizer.c
-index aebc6881e..9f467bad9 100644
+index cc46ebb25..921caa0eb 100644
 --- a/gst/mpegtsdemux/mpegtspacketizer.c
 +++ b/gst/mpegtsdemux/mpegtspacketizer.c
 @@ -45,23 +45,19 @@ G_DEFINE_TYPE_EXTENDED (MpegTSPacketizer2, mpegts_packetizer, G_TYPE_OBJECT, 0,
@@ -681,7 +584,7 @@ index aebc6881e..9f467bad9 100644
    packetizer->pcr_discont_threshold = GST_SECOND;
  }
  
-@@ -385,19 +383,56 @@ mpegts_packetizer_parse_adaptation_field_control (MpegTSPacketizer2 *
+@@ -385,19 +383,59 @@ mpegts_packetizer_parse_adaptation_field_control (MpegTSPacketizer2 *
  
    /* PCR */
    if (afcflags & MPEGTS_AFC_PCR_FLAG) {
@@ -719,7 +622,7 @@ index aebc6881e..9f467bad9 100644
 +        }
 +        if(afcflags & 0x80) { //discontinuity
 +//          prev_out_time=prev_out_time+(packet->offset-last_offset)*1000;  //Make last packet transmitted with 8mbps????
-+          GST_INFO_OBJECT(packetizer,"Resync packetizer. base_time:%"GST_TIME_FORMAT " new PCR:%"GST_TIME_FORMAT,
++          GST_INFO_OBJECT(packetizer,"Resync packetizer due to discontinuity flag. base_time:%"GST_TIME_FORMAT " new PCR:%"GST_TIME_FORMAT,
 +            GST_TIME_ARGS(prev_out_time),
 +            GST_TIME_ARGS(PCRTIME_TO_GSTTIME(packet->pcr)));
 + //         mpegts_packetizer_resync(pcrtable,prev_out_time,packet->pcr,TRUE);
@@ -728,13 +631,16 @@ index aebc6881e..9f467bad9 100644
 +        } 
 +        curr_out_time=calculate_skew (packetizer, pcrtable, packet->pcr,prev_out_time); //pcr:27MHz
 +//        curr_out_time=mpegts_packetizer_pts_to_ts(packetizer,PCRTIME_TO_GSTTIME(packet->pcr),packet->pid);
-+        if(curr_out_time==GST_CLOCK_TIME_NONE) {
++        if(curr_out_time==GST_CLOCK_TIME_NONE ||
++            curr_out_time-packetizer->last_out_time>1000000000 || //more than a second jump
++            curr_out_time<packetizer->last_out_time) { //backward jump
 +//           mpegts_packetizer_resync(pcrtable,prev_out_time,packet->pcr,TRUE);
-+          GST_INFO_OBJECT(packetizer,"Resync packetizer. base_time:%"GST_TIME_FORMAT " new PCR:%"GST_TIME_FORMAT,
++          GST_INFO_OBJECT(packetizer,"Resync packetizer due to gap. base_time:%"GST_TIME_FORMAT " new PCR:%"GST_TIME_FORMAT,
 +            GST_TIME_ARGS(packetizer->last_out_time),
 +            GST_TIME_ARGS(PCRTIME_TO_GSTTIME(packet->pcr)));
++         //FIXME: We should have a more accurate algorythm here.....
 +          mpegts_packetizer_resync(pcrtable,packetizer->last_out_time,PCRTIME_TO_GSTTIME(packet->pcr),TRUE);
-+          curr_out_time=mpegts_packetizer_pts_to_ts(packetizer,PCRTIME_TO_GSTTIME(packet->pcr),packet->pid);
++          curr_out_time=packetizer->last_out_time;
 +          prev_out_time=curr_out_time;
 +        }
 +        if(curr_out_time==GST_CLOCK_TIME_NONE) {
@@ -747,7 +653,7 @@ index aebc6881e..9f467bad9 100644
      }
      if (packetizer->calculate_offset) {
        if (!pcrtable)
-@@ -469,8 +504,9 @@ mpegts_packetizer_parse_packet (MpegTSPacketizer2 * packetizer,
+@@ -469,8 +507,9 @@ mpegts_packetizer_parse_packet (MpegTSPacketizer2 * packetizer,
  
    packet->scram_afc_cc = tmp = *data++;
    /* transport_scrambling_control 2 */
@@ -758,7 +664,7 @@ index aebc6881e..9f467bad9 100644
  
    packet->data = data;
  
-@@ -578,7 +614,7 @@ mpegts_packetizer_clear (MpegTSPacketizer2 * packetizer)
+@@ -578,7 +617,7 @@ mpegts_packetizer_clear (MpegTSPacketizer2 * packetizer)
    packetizer->map_data = NULL;
    packetizer->map_size = 0;
    packetizer->map_offset = 0;
@@ -767,7 +673,7 @@ index aebc6881e..9f467bad9 100644
  
    pcrtable = packetizer->observations[packetizer->pcrtablelut[0x1fff]];
    if (pcrtable)
-@@ -618,7 +654,7 @@ mpegts_packetizer_flush (MpegTSPacketizer2 * packetizer, gboolean hard)
+@@ -618,7 +657,7 @@ mpegts_packetizer_flush (MpegTSPacketizer2 * packetizer, gboolean hard)
    packetizer->map_data = NULL;
    packetizer->map_size = 0;
    packetizer->map_offset = 0;
@@ -776,7 +682,7 @@ index aebc6881e..9f467bad9 100644
  
    pcrtable = packetizer->observations[packetizer->pcrtablelut[0x1fff]];
    if (pcrtable)
-@@ -635,7 +671,7 @@ mpegts_packetizer_flush (MpegTSPacketizer2 * packetizer, gboolean hard)
+@@ -635,7 +674,7 @@ mpegts_packetizer_flush (MpegTSPacketizer2 * packetizer, gboolean hard)
    PACKETIZER_GROUP_UNLOCK (packetizer);
  
    if (hard) {
@@ -785,8 +691,11 @@ index aebc6881e..9f467bad9 100644
      flush_observations (packetizer);
    }
  }
-@@ -668,7 +704,7 @@ mpegts_packetizer_push (MpegTSPacketizer2 * packetizer, GstBuffer * buffer)
-   GstClockTime ts;
+@@ -665,18 +704,21 @@ mpegts_packetizer_new (void)
+ void
+ mpegts_packetizer_push (MpegTSPacketizer2 * packetizer, GstBuffer * buffer)
+ {
++  GstClockTime ts;
    if (G_UNLIKELY (packetizer->empty)) {
      packetizer->empty = FALSE;
 -    packetizer->offset = GST_BUFFER_OFFSET (buffer);
@@ -794,7 +703,21 @@ index aebc6881e..9f467bad9 100644
    }
  
    GST_DEBUG ("Pushing %" G_GSIZE_FORMAT " byte from offset %"
-@@ -1089,8 +1125,8 @@ section_start:
+       G_GUINT64_FORMAT, gst_buffer_get_size (buffer),
+       GST_BUFFER_OFFSET (buffer));
+   gst_adapter_push (packetizer->adapter, buffer);
+-  /* If buffer timestamp is valid, store it */
+-  if (GST_CLOCK_TIME_IS_VALID (GST_BUFFER_TIMESTAMP (buffer)))
+-    packetizer->last_in_time = GST_BUFFER_TIMESTAMP (buffer);
++  /* If the buffer has a valid timestamp, store it - preferring DTS,
++   * which is where upstream arrival times should be stored */
++  ts = GST_BUFFER_DTS_OR_PTS (buffer);
++  if (GST_CLOCK_TIME_IS_VALID (ts))
++    packetizer->last_in_time = ts;
+ }
+ 
+ static void
+@@ -1086,8 +1128,8 @@ section_start:
    /* Fast path for short packets */
    if (!long_packet) {
      /* We can create the section now (function will check for size) */
@@ -805,7 +728,7 @@ index aebc6881e..9f467bad9 100644
      /* Only do fast-path if we have enough byte */
      if (section_length < packet->data_end - data) {
        if ((section =
-@@ -1304,7 +1340,7 @@ mpegts_packetizer_resync (MpegTSPCR * pcr, GstClockTime time,
+@@ -1301,7 +1343,7 @@ mpegts_packetizer_resync (MpegTSPCR * pcr, GstClockTime time,
   *
   * Returns: @time adjusted with the clock skew.
   */
@@ -814,7 +737,7 @@ index aebc6881e..9f467bad9 100644
  calculate_skew (MpegTSPacketizer2 * packetizer,
      MpegTSPCR * pcr, guint64 pcrtime, GstClockTime time)
  {
-@@ -1323,13 +1359,13 @@ calculate_skew (MpegTSPacketizer2 * packetizer,
+@@ -1320,13 +1362,13 @@ calculate_skew (MpegTSPacketizer2 * packetizer,
    if (G_UNLIKELY (!GST_CLOCK_TIME_IS_VALID (pcr->base_time))) {
      pcr->base_time = time;
      pcr->prev_out_time = GST_CLOCK_TIME_NONE;
@@ -830,7 +753,7 @@ index aebc6881e..9f467bad9 100644
          GST_TIME_ARGS (gstpcrtime));
    }
  
-@@ -1338,7 +1374,7 @@ calculate_skew (MpegTSPacketizer2 * packetizer,
+@@ -1335,7 +1377,7 @@ calculate_skew (MpegTSPacketizer2 * packetizer,
        gstpcrtime < pcr->last_pcrtime) {
      if (pcr->last_pcrtime - gstpcrtime > PCR_GST_MAX_VALUE / 2) {
        /* PCR wraparound */
@@ -839,7 +762,7 @@ index aebc6881e..9f467bad9 100644
        pcr->pcroffset += PCR_GST_MAX_VALUE;
        gstpcrtime = PCRTIME_TO_GSTTIME (pcrtime) + pcr->pcroffset;
        send_diff = gstpcrtime - pcr->base_pcrtime;
-@@ -1346,7 +1382,7 @@ calculate_skew (MpegTSPacketizer2 * packetizer,
+@@ -1343,7 +1385,7 @@ calculate_skew (MpegTSPacketizer2 * packetizer,
          && pcr->last_pcrtime - gstpcrtime > 15 * GST_SECOND) {
        /* Time jumped backward by > 15 seconds, and we have a timestamp
         * to use to close the discont. Assume a reset */
@@ -848,7 +771,7 @@ index aebc6881e..9f467bad9 100644
        /* Calculate PCR we would have expected for the given input time,
         * essentially applying the reverse correction process
         *
-@@ -1368,7 +1404,7 @@ calculate_skew (MpegTSPacketizer2 * packetizer,
+@@ -1365,7 +1407,7 @@ calculate_skew (MpegTSPacketizer2 * packetizer,
        pcr->pcroffset += time - pcr->base_time + pcr->base_pcrtime - gstpcrtime;
        gstpcrtime = PCRTIME_TO_GSTTIME (pcrtime) + pcr->pcroffset;
        send_diff = gstpcrtime - pcr->base_pcrtime;
@@ -857,7 +780,7 @@ index aebc6881e..9f467bad9 100644
            " corrected pcr time %" GST_TIME_FORMAT,
            GST_TIME_ARGS (pcr->pcroffset), GST_TIME_ARGS (gstpcrtime));
      } else {
-@@ -1392,7 +1428,7 @@ calculate_skew (MpegTSPacketizer2 * packetizer,
+@@ -1389,7 +1431,7 @@ calculate_skew (MpegTSPacketizer2 * packetizer,
    } else
      send_diff = gstpcrtime - pcr->base_pcrtime;
  
@@ -866,7 +789,7 @@ index aebc6881e..9f467bad9 100644
        ", base %" GST_TIME_FORMAT ", send_diff %" GST_TIME_FORMAT,
        GST_TIME_ARGS (gstpcrtime), GST_TIME_ARGS (time),
        GST_TIME_ARGS (pcr->base_pcrtime), GST_TIME_ARGS (send_diff));
-@@ -1424,7 +1460,7 @@ calculate_skew (MpegTSPacketizer2 * packetizer,
+@@ -1421,7 +1463,7 @@ calculate_skew (MpegTSPacketizer2 * packetizer,
    slope = recv_diff > 0 ? (send_diff * 8) / recv_diff : 8;
  #endif
  
@@ -875,7 +798,7 @@ index aebc6881e..9f467bad9 100644
        ", recv_diff %" GST_TIME_FORMAT ", slope %" G_GUINT64_FORMAT,
        GST_TIME_ARGS (time), GST_TIME_ARGS (pcr->base_time),
        GST_TIME_ARGS (recv_diff), slope);
-@@ -1433,7 +1469,7 @@ calculate_skew (MpegTSPacketizer2 * packetizer,
+@@ -1430,7 +1472,7 @@ calculate_skew (MpegTSPacketizer2 * packetizer,
     * changed too quickly we have to resync because the server likely restarted
     * its timestamps. */
    if (ABS (delta - pcr->skew) > packetizer->pcr_discont_threshold) {
@@ -884,7 +807,7 @@ index aebc6881e..9f467bad9 100644
          GST_TIME_ARGS (delta - pcr->skew));
      mpegts_packetizer_resync (pcr, time, gstpcrtime, TRUE);
      send_diff = 0;
-@@ -1444,7 +1480,7 @@ calculate_skew (MpegTSPacketizer2 * packetizer,
+@@ -1441,7 +1483,7 @@ calculate_skew (MpegTSPacketizer2 * packetizer,
  
    if (G_UNLIKELY (pcr->window_filling)) {
      /* we are filling the window */
@@ -893,7 +816,7 @@ index aebc6881e..9f467bad9 100644
      pcr->window[pos++] = delta;
      /* calc the min delta we observed */
      if (G_UNLIKELY (pos == 1 || delta < pcr->window_min))
-@@ -1454,7 +1490,7 @@ calculate_skew (MpegTSPacketizer2 * packetizer,
+@@ -1451,7 +1493,7 @@ calculate_skew (MpegTSPacketizer2 * packetizer,
        pcr->window_size = pos;
  
        /* window filled */
@@ -902,7 +825,7 @@ index aebc6881e..9f467bad9 100644
  
        /* the skew is now the min */
        pcr->skew = pcr->window_min;
-@@ -1505,7 +1541,7 @@ calculate_skew (MpegTSPacketizer2 * packetizer,
+@@ -1502,7 +1544,7 @@ calculate_skew (MpegTSPacketizer2 * packetizer,
      }
      /* average the min values */
      pcr->skew = (pcr->window_min + (124 * pcr->skew)) / 125;
@@ -911,7 +834,7 @@ index aebc6881e..9f467bad9 100644
          delta, pcr->window_min);
    }
    /* wrap around in the window */
-@@ -1538,7 +1574,7 @@ no_skew:
+@@ -1535,7 +1577,7 @@ no_skew:
                    && out_time > pcr->prev_out_time) ||
                /* if the server timestamps did not change */
                send_diff == pcr->prev_send_diff)) {
@@ -920,7 +843,7 @@ index aebc6881e..9f467bad9 100644
          out_time = GSTTIME_TO_MPEGTIME (out_time);
        }
      }
-@@ -1551,7 +1587,7 @@ no_skew:
+@@ -1548,7 +1590,7 @@ no_skew:
    pcr->prev_in_time = time;
    pcr->prev_send_diff = send_diff;
  
@@ -929,7 +852,7 @@ index aebc6881e..9f467bad9 100644
        pcr->skew, GST_TIME_ARGS (out_time));
  
    return out_time;
-@@ -1920,7 +1956,7 @@ _close_current_group (MpegTSPCR * pcrtable)
+@@ -1917,7 +1959,7 @@ _close_current_group (MpegTSPCR * pcrtable)
    /* And re-evaluate all groups */
  }
  
@@ -938,7 +861,7 @@ index aebc6881e..9f467bad9 100644
  record_pcr (MpegTSPacketizer2 * packetizer, MpegTSPCR * pcrtable,
      guint64 pcr, guint64 offset)
  {
-@@ -1950,34 +1986,34 @@ record_pcr (MpegTSPacketizer2 * packetizer, MpegTSPCR * pcrtable,
+@@ -1947,34 +1989,34 @@ record_pcr (MpegTSPacketizer2 * packetizer, MpegTSPCR * pcrtable,
       *    Create a new group with pcr/offset at the right position
       *    Initialize current to that group
       */
@@ -979,7 +902,7 @@ index aebc6881e..9f467bad9 100644
          _use_group (pcrtable, group);
          return;
        }
-@@ -1993,15 +2029,15 @@ record_pcr (MpegTSPacketizer2 * packetizer, MpegTSPCR * pcrtable,
+@@ -1990,15 +2032,15 @@ record_pcr (MpegTSPacketizer2 * packetizer, MpegTSPCR * pcrtable,
  
    /* FIXME : Detect if we've gone into the next group !
     * FIXME : Close group when that happens */
@@ -999,7 +922,7 @@ index aebc6881e..9f467bad9 100644
        G_GINT64_FORMAT, GST_TIME_ARGS (PCRTIME_TO_GSTTIME (corpcr)), coroffset);
  
    /* Do we need to close the current group ? */
-@@ -2009,8 +2045,8 @@ record_pcr (MpegTSPacketizer2 * packetizer, MpegTSPCR * pcrtable,
+@@ -2006,8 +2048,8 @@ record_pcr (MpegTSPacketizer2 * packetizer, MpegTSPCR * pcrtable,
    if (G_UNLIKELY (corpcr < current->pending[current->last].pcr)) {
      /* FIXME : ignore very small deltas (< 500ms ?) which are most likely
       * stray values */
@@ -1010,7 +933,7 @@ index aebc6881e..9f467bad9 100644
      /* Take values from current and put them in the current group (closing it) */
      /* Create new group with new pcr/offset just after the current group
       * and mark it as a wrapover */
-@@ -2022,7 +2058,7 @@ record_pcr (MpegTSPacketizer2 * packetizer, MpegTSPCR * pcrtable,
+@@ -2019,7 +2061,7 @@ record_pcr (MpegTSPacketizer2 * packetizer, MpegTSPCR * pcrtable,
    /* If PCR diff is greater than 500ms, create new group */
    if (G_UNLIKELY (corpcr - current->pending[current->last].pcr >
            500 * PCR_MSECOND)) {
@@ -1019,7 +942,7 @@ index aebc6881e..9f467bad9 100644
      /* Take values from current and put them in the current group (closing it) */
      /* Create new group with pcr/offset just after the current group
       * and mark it as a discont */
-@@ -2033,7 +2069,7 @@ record_pcr (MpegTSPacketizer2 * packetizer, MpegTSPCR * pcrtable,
+@@ -2030,7 +2072,7 @@ record_pcr (MpegTSPacketizer2 * packetizer, MpegTSPCR * pcrtable,
    }
  
    if (G_UNLIKELY (corpcr == current->last_value.pcr)) {
@@ -1028,7 +951,7 @@ index aebc6881e..9f467bad9 100644
      return;
    }
  
-@@ -2044,19 +2080,19 @@ record_pcr (MpegTSPacketizer2 * packetizer, MpegTSPCR * pcrtable,
+@@ -2041,19 +2083,19 @@ record_pcr (MpegTSPacketizer2 * packetizer, MpegTSPCR * pcrtable,
    current->last = (current->last + 1) % PCR_BITRATE_NEEDED;
    current->write = (current->write + 1) % PCR_BITRATE_NEEDED;
  
@@ -1053,7 +976,7 @@ index aebc6881e..9f467bad9 100644
          current->first, current->last);
      return;
    }
-@@ -2070,7 +2106,7 @@ record_pcr (MpegTSPacketizer2 * packetizer, MpegTSPCR * pcrtable,
+@@ -2067,7 +2109,7 @@ record_pcr (MpegTSPacketizer2 * packetizer, MpegTSPCR * pcrtable,
          current->pending[current->first].offset,
          current->pending[current->last].pcr -
          current->pending[current->first].pcr);
@@ -1062,7 +985,7 @@ index aebc6881e..9f467bad9 100644
          current->cur_bitrate);
  
      /* Calculate previous bitrate */
-@@ -2078,13 +2114,13 @@ record_pcr (MpegTSPacketizer2 * packetizer, MpegTSPCR * pcrtable,
+@@ -2075,13 +2117,13 @@ record_pcr (MpegTSPacketizer2 * packetizer, MpegTSPCR * pcrtable,
          gst_util_uint64_scale (PCR_SECOND,
          current->pending[current->first].offset - current->prev.offset,
          current->pending[current->first].pcr - current->prev.pcr);
@@ -1078,7 +1001,7 @@ index aebc6881e..9f467bad9 100644
            G_GUINT64_FORMAT " new:%" G_GUINT64_FORMAT ")", current->prev_bitrate,
            current->cur_bitrate);
        /* If we detected a change in bitrate, this means that
-@@ -2218,8 +2254,8 @@ mpegts_packetizer_pts_to_ts (MpegTSPacketizer2 * packetizer,
+@@ -2215,8 +2257,8 @@ mpegts_packetizer_pts_to_ts (MpegTSPacketizer2 * packetizer,
    pcrtable = get_pcr_table (packetizer, pcr_pid);
  
    if (!GST_CLOCK_TIME_IS_VALID (pcrtable->base_time) && pcr_pid == 0x1fff &&
@@ -1089,7 +1012,7 @@ index aebc6881e..9f467bad9 100644
      pcrtable->base_pcrtime = pts;
    }
  
-@@ -2335,7 +2371,7 @@ mpegts_packetizer_pts_to_ts (MpegTSPacketizer2 * packetizer,
+@@ -2332,7 +2374,7 @@ mpegts_packetizer_pts_to_ts (MpegTSPacketizer2 * packetizer,
  
    PACKETIZER_GROUP_UNLOCK (packetizer);
  
@@ -2128,29 +2051,78 @@ index 8e227baad..f6ba63932 100644
          GST_TIME_ARGS (GST_BUFFER_PTS (buffer)),
          GST_TIME_ARGS (parse->current_pcr));
 diff --git a/gst/mpegtsdemux/tsdemux.c b/gst/mpegtsdemux/tsdemux.c
-index 64f9d0bb7..0233b70e6 100644
+index e5c78e7ad..0233b70e6 100644
 --- a/gst/mpegtsdemux/tsdemux.c
 +++ b/gst/mpegtsdemux/tsdemux.c
-@@ -1009,7 +1009,7 @@ sink_query (MpegTSBase * base, GstQuery * query)
- {
-   GstTSDemux *demux = (GstTSDemux *) base;
-   gboolean res = FALSE;
--
-+/*
-   switch (GST_QUERY_TYPE (query)) {
-     case GST_QUERY_BITRATE:{
-       gint64 size_bytes;
-@@ -1035,7 +1035,7 @@ sink_query (MpegTSBase * base, GstQuery * query)
-       res = GST_MPEGTS_BASE_CLASS (parent_class)->sink_query (base, query);
-       break;
-   }
--
-+*/
-   return res;
+@@ -322,6 +322,7 @@ static void gst_ts_demux_stream_flush (TSDemuxStream * stream,
+     GstTSDemux * demux, gboolean hard);
+ 
+ static gboolean push_event (MpegTSBase * base, GstEvent * event);
++static gboolean sink_query (MpegTSBase * base, GstQuery * query);
+ static void gst_ts_demux_check_and_sync_streams (GstTSDemux * demux,
+     GstClockTime time);
+ 
+@@ -394,6 +395,7 @@ gst_ts_demux_class_init (GstTSDemuxClass * klass)
+   ts_class->reset = GST_DEBUG_FUNCPTR (gst_ts_demux_reset);
+   ts_class->push = GST_DEBUG_FUNCPTR (gst_ts_demux_push);
+   ts_class->push_event = GST_DEBUG_FUNCPTR (push_event);
++  ts_class->sink_query = GST_DEBUG_FUNCPTR (sink_query);
+   ts_class->program_started = GST_DEBUG_FUNCPTR (gst_ts_demux_program_started);
+   ts_class->program_stopped = GST_DEBUG_FUNCPTR (gst_ts_demux_program_stopped);
+   ts_class->update_program = GST_DEBUG_FUNCPTR (gst_ts_demux_update_program);
+@@ -1002,6 +1004,41 @@ push_event (MpegTSBase * base, GstEvent * event)
+   return TRUE;
  }
  
++static gboolean
++sink_query (MpegTSBase * base, GstQuery * query)
++{
++  GstTSDemux *demux = (GstTSDemux *) base;
++  gboolean res = FALSE;
++/*
++  switch (GST_QUERY_TYPE (query)) {
++    case GST_QUERY_BITRATE:{
++      gint64 size_bytes;
++      GstClockTime duration;
++
++      if (gst_pad_peer_query_duration (base->sinkpad, GST_FORMAT_BYTES,
++              &size_bytes) && size_bytes > 0) {
++        if (gst_ts_demux_get_duration (demux, &duration) && duration > 0
++            && duration != GST_CLOCK_TIME_NONE) {
++          guint bitrate =
++              gst_util_uint64_scale (8 * size_bytes, GST_SECOND, duration);
++
++          GST_LOG_OBJECT (demux, "bitrate query byte length: %" G_GINT64_FORMAT
++              " duration %" GST_TIME_FORMAT " resulting in a bitrate of %u",
++              size_bytes, GST_TIME_ARGS (duration), bitrate);
++          gst_query_set_bitrate (query, bitrate);
++          res = TRUE;
++        }
++      }
++      break;
++    }
++    default:
++      res = GST_MPEGTS_BASE_CLASS (parent_class)->sink_query (base, query);
++      break;
++  }
++*/
++  return res;
++}
++
+ static inline void
+ add_iso639_language_to_tags (TSDemuxStream * stream, gchar * lang_code)
+ {
+diff --git a/gst/mpegtsmux/meson.build b/gst/mpegtsmux/meson.build
+index 568b69575..5be65a209 100644
+--- a/gst/mpegtsmux/meson.build
++++ b/gst/mpegtsmux/meson.build
+@@ -17,3 +17,4 @@ gstmpegtsmux = library('gstmpegtsmux',
+   install : true,
+   install_dir : plugins_install_dir,
+ )
++pkgconfig.generate(gstmpegtsmux, install_dir : plugins_pkgconfig_install_dir)
 diff --git a/gst/mpegtsmux/mpegtsmux.c b/gst/mpegtsmux/mpegtsmux.c
-index 58b1009bf..b93c5aacb 100644
+index 99562fd45..b93c5aacb 100644
 --- a/gst/mpegtsmux/mpegtsmux.c
 +++ b/gst/mpegtsmux/mpegtsmux.c
 @@ -115,17 +115,19 @@ enum
@@ -2449,16 +2421,15 @@ index 58b1009bf..b93c5aacb 100644
  {
    GstFlowReturn ret = GST_FLOW_OK;
    GSList *walk = mux->collect->data;
-@@ -930,7 +1110,7 @@ mpegtsmux_create_streams (MpegTsMux * mux)
+@@ -930,6 +1110,7 @@ mpegtsmux_create_streams (MpegTsMux * mux)
      GstCollectData *c_data = (GstCollectData *) walk->data;
      MpegTsPadData *ts_data = (MpegTsPadData *) walk->data;
      gchar *name = NULL;
--    gchar *pcr_name;
 +    gchar *pcr_name, *pmt_name;
  
      walk = g_slist_next (walk);
  
-@@ -973,6 +1153,7 @@ mpegtsmux_create_streams (MpegTsMux * mux)
+@@ -972,6 +1153,7 @@ mpegtsmux_create_streams (MpegTsMux * mux)
            ts_data->pid, ts_data->prog_id);
  
        tsmux_program_set_pcr_stream (ts_data->prog, ts_data->stream);
@@ -2466,10 +2437,24 @@ index 58b1009bf..b93c5aacb 100644
      }
  
      if (ts_data->stream == NULL) {
-@@ -994,6 +1175,19 @@ mpegtsmux_create_streams (MpegTsMux * mux)
-       }
+@@ -979,6 +1161,33 @@ mpegtsmux_create_streams (MpegTsMux * mux)
+       if (ret != GST_FLOW_OK)
+         goto no_stream;
      }
-     g_free (pcr_name);
++
++    /* Check for user-specified PCR PID */
++    pcr_name = g_strdup_printf ("PCR_%d", ts_data->prog->pgm_number);
++    if (mux->prog_map && gst_structure_has_field (mux->prog_map, pcr_name)) {
++      const gchar *sink_name =
++          gst_structure_get_string (mux->prog_map, pcr_name);
++
++      if (!g_strcmp0 (name, sink_name)) {
++        GST_DEBUG_OBJECT (mux, "User specified stream (pid=%d) as PCR for "
++            "program (prog_id = %d)", ts_data->pid, ts_data->prog->pgm_number);
++        tsmux_program_set_pcr_stream (ts_data->prog, ts_data->stream);
++      }
++    }
++    g_free (pcr_name);
 +
 +    /* Check for user-specified PMT PID */
 +    pmt_name = g_strdup_printf("PMT_%d", ts_data->prog->pgm_number);
@@ -2486,7 +2471,33 @@ index 58b1009bf..b93c5aacb 100644
    }
  
    return GST_FLOW_OK;
-@@ -1348,18 +1542,6 @@ mpegtsmux_collected_buffer (GstCollectPads * pads, GstCollectData * data,
+@@ -1086,6 +1295,25 @@ mpegtsmux_sink_event (GstCollectPads * pads, GstCollectData * data,
+       }
+       break;
+     }
++    case GST_EVENT_FLUSH_STOP:{
++      GList *cur;
++
++      /* Send initial segments again after a flush-stop, and also resend the
++       * header sections */
++      mux->first = TRUE;
++
++      /* output PAT, SI tables */
++      tsmux_resend_pat (mux->tsmux);
++      tsmux_resend_si (mux->tsmux);
++
++      /* output PMT for each program */
++      for (cur = mux->tsmux->programs; cur; cur = cur->next) {
++        TsMuxProgram *program = (TsMuxProgram *) cur->data;
++
++        tsmux_resend_pmt (program);
++      }
++      break;
++    }
+     default:
+       break;
+   }
+@@ -1314,18 +1542,6 @@ mpegtsmux_collected_buffer (GstCollectPads * pads, GstCollectData * data,
  
    GST_DEBUG_OBJECT (mux, "Pads collected");
  
@@ -2505,7 +2516,7 @@ index 58b1009bf..b93c5aacb 100644
  
    if (G_UNLIKELY (best == NULL)) {
      /* EOS */
-@@ -1372,7 +1554,7 @@ mpegtsmux_collected_buffer (GstCollectPads * pads, GstCollectData * data,
+@@ -1338,7 +1554,7 @@ mpegtsmux_collected_buffer (GstCollectPads * pads, GstCollectData * data,
      if (buf)
        gst_buffer_unref (buf);
  
@@ -2573,7 +2584,7 @@ index 11a1480bb..924b23dc3 100644
  /* writing stuff */
  gboolean 	tsmux_write_stream_packet 	(TsMux *mux, TsMuxStream *stream);
 diff --git a/gst/mpegtsmux/tsmux/tsmuxstream.c b/gst/mpegtsmux/tsmux/tsmuxstream.c
-index ff68dff8a..6385a7a23 100644
+index 4cbd21770..6385a7a23 100644
 --- a/gst/mpegtsmux/tsmux/tsmuxstream.c
 +++ b/gst/mpegtsmux/tsmux/tsmuxstream.c
 @@ -229,6 +229,7 @@ tsmux_stream_new (guint16 pid, TsMuxStreamType stream_type)
@@ -2584,6 +2595,15 @@ index ff68dff8a..6385a7a23 100644
  
    return stream;
  }
+@@ -304,7 +305,7 @@ tsmux_stream_consume (TsMuxStream * stream, guint len)
+   stream->cur_buffer_consumed += len;
+   stream->bytes_avail -= len;
+ 
+-  if (stream->cur_buffer_consumed == 0)
++  if (stream->cur_buffer_consumed == 0 && stream->cur_buffer->size != 0)
+     return;
+ 
+   if (GST_CLOCK_STIME_IS_VALID (stream->cur_buffer->pts)) {
 @@ -432,10 +433,12 @@ tsmux_stream_initialize_pes_packet (TsMuxStream * stream)
    stream->pi.flags &= ~(TSMUX_PACKET_FLAG_PES_WRITE_PTS_DTS |
        TSMUX_PACKET_FLAG_PES_WRITE_PTS);
@@ -2627,7 +2647,19 @@ index ff68dff8a..6385a7a23 100644
  
    stream->bytes_avail += len;
    stream->buffers = g_list_append (stream->buffers, packet);
-@@ -1092,5 +1103,5 @@ tsmux_stream_get_pts (TsMuxStream * stream)
+@@ -974,7 +985,11 @@ tsmux_stream_get_es_descrs (TsMuxStream * stream,
+ 
+       descriptor = gst_mpegts_descriptor_from_registration ("AC-3",
+           add_info, 6);
++      g_ptr_array_add (pmt_stream->descriptors, descriptor);
+ 
++      descriptor =
++          gst_mpegts_descriptor_from_custom (GST_MTS_DESC_AC3_AUDIO_STREAM,
++          add_info, 6);
+       g_ptr_array_add (pmt_stream->descriptors, descriptor);
+ 
+       break;
+@@ -1088,5 +1103,5 @@ tsmux_stream_get_pts (TsMuxStream * stream)
  {
    g_return_val_if_fail (stream != NULL, GST_CLOCK_STIME_NONE);
  
@@ -2646,3 +2678,768 @@ index 7edfb61ec..db41cd6cf 100644
  };
  
  /* stream management */
+diff --git a/sys/nvdec/Makefile.am b/sys/nvdec/Makefile.am
+index 5539dd25c..ca40fc3d4 100644
+--- a/sys/nvdec/Makefile.am
++++ b/sys/nvdec/Makefile.am
+@@ -19,7 +19,8 @@ libgstnvdec_la_LIBADD = \
+ 	$(GST_GL_LIBS) \
+ 	$(GST_PBUTILS_LIBS) \
+ 	$(GST_VIDEO_LIBS) \
+-	$(GST_LIBS) \
+-	$(CUDA_LIBS) -lnvcuvid
++	$(GST_LIBS)
++
++libgstnvdec_la_LIBADD += $(CUDA_LIBS) -lnvcuvid
+ 
+ libgstnvdec_la_LDFLAGS = $(GST_PLUGIN_LDFLAGS)
+diff --git a/sys/nvdec/gstnvdec.c b/sys/nvdec/gstnvdec.c
+index 0ec83a8e9..2bc44d24e 100644
+--- a/sys/nvdec/gstnvdec.c
++++ b/sys/nvdec/gstnvdec.c
+@@ -31,9 +31,6 @@
+ 
+ #include "gstnvdec.h"
+ 
+-#include <gst/gl/gstglfuncs.h>
+-#include <cudaGL.h>
+-
+ typedef enum
+ {
+   GST_NVDEC_QUEUE_ITEM_TYPE_SEQUENCE,
+@@ -225,7 +222,7 @@ static GstStaticPadTemplate gst_nvdec_sink_template =
+     GST_STATIC_CAPS ("video/x-h264, stream-format=byte-stream, alignment=au; "
+         "video/x-h265, stream-format=byte-stream, alignment=au; "
+         "video/mpeg, mpegversion={ 1, 2, 4 }, systemstream=false; "
+-        "image/jpeg")
++        "image/jpeg; video/x-vp8; video/x-vp9")
+     );
+ 
+ static GstStaticPadTemplate gst_nvdec_src_template =
+@@ -251,7 +248,7 @@ gst_nvdec_class_init (GstNvDecClass * klass)
+       &gst_nvdec_src_template);
+ 
+   gst_element_class_set_static_metadata (element_class, "NVDEC video decoder",
+-      "Decoder/Video", "NVDEC video decoder",
++      "Codec/Decoder/Video/Hardware", "NVDEC video decoder",
+       "Ericsson AB, http://www.ericsson.com");
+ 
+   video_decoder_class->start = GST_DEBUG_FUNCPTR (gst_nvdec_start);
+@@ -537,6 +534,10 @@ gst_nvdec_set_format (GstVideoDecoder * decoder, GstVideoCodecState * state)
+     parser_params.CodecType = cudaVideoCodec_JPEG;
+   } else if (!g_strcmp0 (caps_name, "video/x-h265")) {
+     parser_params.CodecType = cudaVideoCodec_HEVC;
++  } else if (!g_strcmp0 (caps_name, "video/x-vp8")) {
++    parser_params.CodecType = cudaVideoCodec_VP8;
++  } else if (!g_strcmp0 (caps_name, "video/x-vp9")) {
++    parser_params.CodecType = cudaVideoCodec_VP9;
+   } else {
+     GST_ERROR_OBJECT (nvdec, "failed to determine codec type");
+     return FALSE;
+@@ -693,10 +694,17 @@ handle_pending_frames (GstNvDec * nvdec)
+           vinfo = &state->info;
+           vinfo->fps_n = fps_n;
+           vinfo->fps_d = fps_d;
+-          if (format->progressive_sequence)
++          if (format->progressive_sequence) {
+             vinfo->interlace_mode = GST_VIDEO_INTERLACE_MODE_PROGRESSIVE;
+-          else
++
++            /* nvdec doesn't seem to deal with interlacing with hevc so rely
++             * on upstream's value */
++            if (format->codec == cudaVideoCodec_HEVC) {
++              vinfo->interlace_mode = nvdec->input_state->info.interlace_mode;
++            }
++          } else {
+             vinfo->interlace_mode = GST_VIDEO_INTERLACE_MODE_MIXED;
++          }
+ 
+           GST_LOG_OBJECT (decoder,
+               "Reading colorimetry information full-range %d matrix %d transfer %d primaries %d",
+diff --git a/sys/nvdec/gstnvdec.h b/sys/nvdec/gstnvdec.h
+index 7bc6e8100..a643b1bf4 100644
+--- a/sys/nvdec/gstnvdec.h
++++ b/sys/nvdec/gstnvdec.h
+@@ -29,7 +29,9 @@
+ #define __GST_NVDEC_H__
+ 
+ #include <gst/gl/gl.h>
+-#include <nvcuvid.h>
++#include <gst/gl/gstglfuncs.h>
++#include "nvcuvid.h"
++#include <cudaGL.h>
+ 
+ G_BEGIN_DECLS
+ 
+diff --git a/sys/nvenc/Makefile.am b/sys/nvenc/Makefile.am
+index 8c2968eb8..376c9f41b 100644
+--- a/sys/nvenc/Makefile.am
++++ b/sys/nvenc/Makefile.am
+@@ -3,30 +3,34 @@ plugin_LTLIBRARIES = libgstnvenc.la
+ libgstnvenc_la_SOURCES = \
+ 	gstnvenc.c \
+ 	gstnvbaseenc.c \
+-	gstnvh264enc.c
++	gstnvh264enc.c \
++	gstnvh265enc.c
+ 
+ noinst_HEADERS = \
+ 	gstnvenc.h \
+ 	gstnvbaseenc.h \
+-	gstnvh264enc.h
++	gstnvh264enc.h \
++	gstnvh265enc.h
+ 
+ libgstnvenc_la_CFLAGS = \
+ 	$(GST_PLUGINS_BAD_CFLAGS) \
+ 	$(GST_PBUTILS_CFLAGS) \
+ 	$(GST_VIDEO_CFLAGS) \
+ 	$(GST_CFLAGS) \
+-	$(CUDA_CFLAGS) \
+-	$(NVENCODE_CFLAGS)
++	$(CUDA_CFLAGS)
+ 
+ libgstnvenc_la_LIBADD = \
+ 	$(GST_PBUTILS_LIBS) \
+ 	$(GST_VIDEO_LIBS) \
+ 	$(GST_LIBS) \
+ 	$(CUDA_LIBS) \
+-	$(NVENCODE_LIBS)
++	$(GMODULE_NO_EXPORT_LIBS)
+ 
+ if USE_NVENC_GST_GL
+ libgstnvenc_la_CFLAGS += $(GST_GL_CFLAGS)
+ libgstnvenc_la_LIBADD += $(GST_GL_LIBS)
+ endif
+ libgstnvenc_la_LDFLAGS = $(GST_PLUGIN_LDFLAGS)
++
++EXTRA_DIST = \
++	nvEncodeAPI.h
+diff --git a/sys/nvenc/gstnvbaseenc.c b/sys/nvenc/gstnvbaseenc.c
+index e805a5bcb..42fe7ac92 100644
+--- a/sys/nvenc/gstnvbaseenc.c
++++ b/sys/nvenc/gstnvbaseenc.c
+@@ -27,10 +27,13 @@
+ 
+ #include <string.h>
+ 
++#define GST_CAT_DEFAULT gst_nvenc_debug
++
+ #if HAVE_NVENC_GST_GL
+ #include <cuda.h>
+ #include <cuda_runtime_api.h>
+ #include <cuda_gl_interop.h>
++#include <cudaGL.h>
+ #include <gst/gl/gl.h>
+ #endif
+ 
+@@ -139,23 +142,6 @@ _rc_mode_to_nv (GstNvRCMode mode)
+   }
+ }
+ 
+-static GstStaticPadTemplate sink_factory = GST_STATIC_PAD_TEMPLATE ("sink",
+-    GST_PAD_SINK,
+-    GST_PAD_ALWAYS,
+-    GST_STATIC_CAPS ("video/x-raw, " "format = (string) { NV12, I420 }, "       // TODO: YV12, Y444 support
+-        "width = (int) [ 16, 4096 ], height = (int) [ 16, 2160 ], "
+-        "framerate = (fraction) [0, MAX],"
+-        "interlace-mode = { progressive, mixed, interleaved } "
+-#if HAVE_NVENC_GST_GL
+-        ";"
+-        "video/x-raw(memory:GLMemory), "
+-        "format = (string) { NV12, Y444 }, "
+-        "width = (int) [ 16, 4096 ], height = (int) [ 16, 2160 ], "
+-        "framerate = (fraction) [0, MAX],"
+-        "interlace-mode = { progressive, mixed, interleaved } "
+-#endif
+-    ));
+-
+ enum
+ {
+   PROP_0,
+@@ -186,13 +172,17 @@ G_LOCK_DEFINE_STATIC (initialization_lock);
+ struct gl_input_resource
+ {
+   GstGLMemory *gl_mem[GST_VIDEO_MAX_PLANES];
+-  struct cudaGraphicsResource *cuda_texture;
+-  gpointer cuda_plane_pointers[GST_VIDEO_MAX_PLANES];
++  CUgraphicsResource cuda_texture;
++  CUdeviceptr cuda_plane_pointers[GST_VIDEO_MAX_PLANES];
+   gpointer cuda_pointer;
+   gsize cuda_stride;
+   gsize cuda_num_bytes;
+   NV_ENC_REGISTER_RESOURCE nv_resource;
+   NV_ENC_MAP_INPUT_RESOURCE nv_mapped_resource;
++
++  /* whether nv_mapped_resource was mapped via NvEncMapInputResource()
++   * and therefore should unmap via NvEncUnmapInputResource or not */
++  gboolean mapped;
+ };
+ #endif
+ 
+@@ -224,7 +214,8 @@ static void gst_nv_base_enc_get_property (GObject * object, guint prop_id,
+ static void gst_nv_base_enc_finalize (GObject * obj);
+ static GstCaps *gst_nv_base_enc_getcaps (GstVideoEncoder * enc,
+     GstCaps * filter);
+-static gboolean gst_nv_base_enc_stop_bitstream_thread (GstNvBaseEnc * nvenc);
++static gboolean gst_nv_base_enc_stop_bitstream_thread (GstNvBaseEnc * nvenc,
++    gboolean force);
+ 
+ static void
+ gst_nv_base_enc_class_init (GstNvBaseEncClass * klass)
+@@ -252,8 +243,6 @@ gst_nv_base_enc_class_init (GstNvBaseEncClass * klass)
+   videoenc_class->finish = GST_DEBUG_FUNCPTR (gst_nv_base_enc_finish);
+   videoenc_class->sink_query = GST_DEBUG_FUNCPTR (gst_nv_base_enc_sink_query);
+ 
+-  gst_element_class_add_static_pad_template (element_class, &sink_factory);
+-
+   g_object_class_install_property (gobject_class, PROP_DEVICE_ID,
+       g_param_spec_uint ("cuda-device-id",
+           "Cuda Device ID",
+@@ -307,9 +296,11 @@ _get_supported_input_formats (GstNvBaseEnc * nvenc)
+   guint64 format_mask = 0;
+   uint32_t i, num = 0;
+   NV_ENC_BUFFER_FORMAT formats[64];
+-  GValue list = G_VALUE_INIT;
+   GValue val = G_VALUE_INIT;
+ 
++  if (nvenc->input_formats)
++    return TRUE;
++
+   NvEncGetInputFormats (nvenc->encoder, nvenc_class->codec_id, formats,
+       G_N_ELEMENTS (formats), &num);
+ 
+@@ -376,30 +367,30 @@ _get_supported_input_formats (GstNvBaseEnc * nvenc)
+   if (format_mask == 0)
+     return FALSE;
+ 
++  GST_OBJECT_LOCK (nvenc);
++  nvenc->input_formats = g_new0 (GValue, 1);
++
+   /* process a second time so we can add formats in the order we want */
+-  g_value_init (&list, GST_TYPE_LIST);
++  g_value_init (nvenc->input_formats, GST_TYPE_LIST);
+   g_value_init (&val, G_TYPE_STRING);
+   if ((format_mask & (1 << GST_VIDEO_FORMAT_NV12))) {
+     g_value_set_static_string (&val, "NV12");
+-    gst_value_list_append_value (&list, &val);
++    gst_value_list_append_value (nvenc->input_formats, &val);
+   }
+   if ((format_mask & (1 << GST_VIDEO_FORMAT_YV12))) {
+     g_value_set_static_string (&val, "YV12");
+-    gst_value_list_append_value (&list, &val);
++    gst_value_list_append_value (nvenc->input_formats, &val);
+   }
+   if ((format_mask & (1 << GST_VIDEO_FORMAT_I420))) {
+     g_value_set_static_string (&val, "I420");
+-    gst_value_list_append_value (&list, &val);
++    gst_value_list_append_value (nvenc->input_formats, &val);
+   }
+   if ((format_mask & (1 << GST_VIDEO_FORMAT_Y444))) {
+     g_value_set_static_string (&val, "Y444");
+-    gst_value_list_append_value (&list, &val);
++    gst_value_list_append_value (nvenc->input_formats, &val);
+   }
+   g_value_unset (&val);
+ 
+-  GST_OBJECT_LOCK (nvenc);
+-  g_free (nvenc->input_formats);
+-  nvenc->input_formats = g_memdup (&list, sizeof (GValue));
+   GST_OBJECT_UNLOCK (nvenc);
+ 
+   return TRUE;
+@@ -448,9 +439,9 @@ gst_nv_base_enc_open (GstVideoEncoder * enc)
+ static void
+ gst_nv_base_enc_set_context (GstElement * element, GstContext * context)
+ {
++#if HAVE_NVENC_GST_GL
+   GstNvBaseEnc *nvenc = GST_NV_BASE_ENC (element);
+ 
+-#if HAVE_NVENC_GST_GL
+   gst_gl_handle_set_context (element, context,
+       (GstGLDisplay **) & nvenc->display,
+       (GstGLContext **) & nvenc->other_context);
+@@ -465,7 +456,9 @@ gst_nv_base_enc_set_context (GstElement * element, GstContext * context)
+ static gboolean
+ gst_nv_base_enc_sink_query (GstVideoEncoder * enc, GstQuery * query)
+ {
++#if HAVE_NVENC_GST_GL
+   GstNvBaseEnc *nvenc = GST_NV_BASE_ENC (enc);
++#endif
+ 
+   switch (GST_QUERY_TYPE (query)) {
+ #if HAVE_NVENC_GST_GL
+@@ -520,10 +513,15 @@ gst_nv_base_enc_stop (GstVideoEncoder * enc)
+ {
+   GstNvBaseEnc *nvenc = GST_NV_BASE_ENC (enc);
+ 
+-  gst_nv_base_enc_stop_bitstream_thread (nvenc);
++  gst_nv_base_enc_stop_bitstream_thread (nvenc, TRUE);
+ 
+   gst_nv_base_enc_free_buffers (nvenc);
+ 
++  if (nvenc->input_state) {
++    gst_video_codec_state_unref (nvenc->input_state);
++    nvenc->input_state = NULL;
++  }
++
+   if (nvenc->bitstream_pool) {
+     g_async_queue_unref (nvenc->bitstream_pool);
+     nvenc->bitstream_pool = NULL;
+@@ -573,7 +571,7 @@ _get_interlace_modes (GstNvBaseEnc * nvenc)
+     g_value_set_static_string (&val, "interleaved");
+     gst_value_list_append_value (list, &val);
+     g_value_set_static_string (&val, "mixed");
+-    gst_value_list_append_value (list, &val);
++    gst_value_list_append_and_take_value (list, &val);
+   }
+   /* TODO: figure out what nvenc frame based interlacing means in gst terms */
+ 
+@@ -598,6 +596,7 @@ gst_nv_base_enc_getcaps (GstVideoEncoder * enc, GstCaps * filter)
+ 
+     val = _get_interlace_modes (nvenc);
+     gst_caps_set_value (supported_incaps, "interlace-mode", val);
++    g_value_unset (val);
+     g_free (val);
+ 
+     GST_LOG_OBJECT (enc, "codec input caps %" GST_PTR_FORMAT, supported_incaps);
+@@ -639,6 +638,8 @@ gst_nv_base_enc_close (GstVideoEncoder * enc)
+   }
+ 
+   GST_OBJECT_LOCK (nvenc);
++  if (nvenc->input_formats)
++    g_value_unset (nvenc->input_formats);
+   g_free (nvenc->input_formats);
+   nvenc->input_formats = NULL;
+   GST_OBJECT_UNLOCK (nvenc);
+@@ -840,6 +841,8 @@ gst_nv_base_enc_bitstream_thread (gpointer user_data)
+         nv_ret =
+             NvEncUnmapInputResource (nvenc->encoder,
+             in_gl_resource->nv_mapped_resource.mappedResource);
++        in_gl_resource->mapped = FALSE;
++
+         if (nv_ret != NV_ENC_SUCCESS) {
+           GST_ERROR_OBJECT (nvenc, "Failed to unmap input resource %p, ret %d",
+               in_gl_resource, nv_ret);
+@@ -892,29 +895,37 @@ gst_nv_base_enc_start_bitstream_thread (GstNvBaseEnc * nvenc)
+ }
+ 
+ static gboolean
+-gst_nv_base_enc_stop_bitstream_thread (GstNvBaseEnc * nvenc)
++gst_nv_base_enc_stop_bitstream_thread (GstNvBaseEnc * nvenc, gboolean force)
+ {
+   gpointer out_buf;
+ 
+   if (nvenc->bitstream_thread == NULL)
+     return TRUE;
+ 
+-  /* FIXME */
+-  GST_FIXME_OBJECT (nvenc, "stop bitstream reading thread properly");
+-  g_async_queue_lock (nvenc->bitstream_queue);
+-  g_async_queue_lock (nvenc->bitstream_pool);
+-  while ((out_buf = g_async_queue_try_pop_unlocked (nvenc->bitstream_queue))) {
+-    GST_INFO_OBJECT (nvenc, "stole bitstream buffer %p from queue", out_buf);
+-    g_async_queue_push_unlocked (nvenc->bitstream_pool, out_buf);
++  if (force) {
++    g_async_queue_lock (nvenc->bitstream_queue);
++    g_async_queue_lock (nvenc->bitstream_pool);
++    while ((out_buf = g_async_queue_try_pop_unlocked (nvenc->bitstream_queue))) {
++      GST_INFO_OBJECT (nvenc, "stole bitstream buffer %p from queue", out_buf);
++      g_async_queue_push_unlocked (nvenc->bitstream_pool, out_buf);
++    }
++    g_async_queue_push_unlocked (nvenc->bitstream_queue, SHUTDOWN_COOKIE);
++    g_async_queue_unlock (nvenc->bitstream_pool);
++    g_async_queue_unlock (nvenc->bitstream_queue);
++  } else {
++    /* wait for encoder to drain the remaining buffers */
++    g_async_queue_push (nvenc->bitstream_queue, SHUTDOWN_COOKIE);
++  }
++
++  if (!force) {
++    /* temporary unlock during finish, so other thread can find and push frame */
++    GST_VIDEO_ENCODER_STREAM_UNLOCK (nvenc);
+   }
+-  g_async_queue_push_unlocked (nvenc->bitstream_queue, SHUTDOWN_COOKIE);
+-  g_async_queue_unlock (nvenc->bitstream_pool);
+-  g_async_queue_unlock (nvenc->bitstream_queue);
+ 
+-  /* temporary unlock, so other thread can find and push frame */
+-  GST_VIDEO_ENCODER_STREAM_UNLOCK (nvenc);
+   g_thread_join (nvenc->bitstream_thread);
+-  GST_VIDEO_ENCODER_STREAM_LOCK (nvenc);
++
++  if (!force)
++    GST_VIDEO_ENCODER_STREAM_LOCK (nvenc);
+ 
+   nvenc->bitstream_thread = NULL;
+   return TRUE;
+@@ -966,6 +977,20 @@ gst_nv_base_enc_free_buffers (GstNvBaseEnc * nvenc)
+       struct gl_input_resource *in_gl_resource = nvenc->input_bufs[i];
+ 
+       cuCtxPushCurrent (nvenc->cuda_ctx);
++
++      if (in_gl_resource->mapped) {
++        GST_LOG_OBJECT (nvenc, "Unmap resource %p", in_gl_resource);
++
++        nv_ret =
++            NvEncUnmapInputResource (nvenc->encoder,
++            in_gl_resource->nv_mapped_resource.mappedResource);
++
++        if (nv_ret != NV_ENC_SUCCESS) {
++          GST_ERROR_OBJECT (nvenc, "Failed to unmap input resource %p, ret %d",
++              in_gl_resource, nv_ret);
++        }
++      }
++
+       nv_ret =
+           NvEncUnregisterResource (nvenc->encoder,
+           in_gl_resource->nv_resource.registeredResource);
+@@ -973,6 +998,12 @@ gst_nv_base_enc_free_buffers (GstNvBaseEnc * nvenc)
+         GST_ERROR_OBJECT (nvenc, "Failed to unregister resource %p, ret %d",
+             in_gl_resource, nv_ret);
+ 
++      nv_ret = cuMemFree ((CUdeviceptr) in_gl_resource->cuda_pointer);
++      if (nv_ret != NV_ENC_SUCCESS) {
++        GST_ERROR_OBJECT (nvenc, "Failed to free CUDA device memory, ret %d",
++            nv_ret);
++      }
++
+       g_free (in_gl_resource);
+       cuCtxPopCurrent (NULL);
+     } else
+@@ -1468,6 +1499,7 @@ _map_gl_input_buffer (GstGLContext * context, struct map_gl_input *data)
+   cudaError_t cuda_ret;
+   guint8 *data_pointer;
+   guint i;
++  CUDA_MEMCPY2D param;
+ 
+   cuCtxPushCurrent (data->nvenc->cuda_ctx);
+   data_pointer = data->in_gl_resource->cuda_pointer;
+@@ -1495,7 +1527,7 @@ _map_gl_input_buffer (GstGLContext * context, struct map_gl_input *data)
+         gl_mem->mem.tex_id);
+ 
+     cuda_ret =
+-        cudaGraphicsGLRegisterBuffer (&data->in_gl_resource->cuda_texture,
++        cuGraphicsGLRegisterBuffer (&data->in_gl_resource->cuda_texture,
+         gl_buf_obj->id, cudaGraphicsRegisterFlagsReadOnly);
+     if (cuda_ret != cudaSuccess) {
+       GST_ERROR_OBJECT (data->nvenc, "failed to register GL texture %u to cuda "
+@@ -1504,7 +1536,7 @@ _map_gl_input_buffer (GstGLContext * context, struct map_gl_input *data)
+     }
+ 
+     cuda_ret =
+-        cudaGraphicsMapResources (1, &data->in_gl_resource->cuda_texture, 0);
++        cuGraphicsMapResources (1, &data->in_gl_resource->cuda_texture, 0);
+     if (cuda_ret != cudaSuccess) {
+       GST_ERROR_OBJECT (data->nvenc, "failed to map GL texture %u into cuda "
+           "ret :%d", gl_mem->mem.tex_id, cuda_ret);
+@@ -1512,7 +1544,7 @@ _map_gl_input_buffer (GstGLContext * context, struct map_gl_input *data)
+     }
+ 
+     cuda_ret =
+-        cudaGraphicsResourceGetMappedPointer (&data->in_gl_resource->
++        cuGraphicsResourceGetMappedPointer (&data->in_gl_resource->
+         cuda_plane_pointers[i], &data->in_gl_resource->cuda_num_bytes,
+         data->in_gl_resource->cuda_texture);
+     if (cuda_ret != cudaSuccess) {
+@@ -1525,11 +1557,21 @@ _map_gl_input_buffer (GstGLContext * context, struct map_gl_input *data)
+     dest_stride = data->in_gl_resource->cuda_stride;
+ 
+     /* copy into scratch buffer */
+-    cuda_ret =
+-        cudaMemcpy2D (data_pointer, dest_stride,
+-        data->in_gl_resource->cuda_plane_pointers[i], src_stride,
+-        _get_plane_width (data->info, i) * plane_n_components,
+-        _get_plane_height (data->info, i), cudaMemcpyDeviceToDevice);
++    param.srcXInBytes = 0;
++    param.srcY = 0;
++    param.srcMemoryType = CU_MEMORYTYPE_DEVICE;
++    param.srcDevice = data->in_gl_resource->cuda_plane_pointers[i];
++    param.srcPitch = src_stride;
++
++    param.dstXInBytes = 0;
++    param.dstY = 0;
++    param.dstMemoryType = CU_MEMORYTYPE_DEVICE;
++    param.dstDevice = (CUdeviceptr) data_pointer;
++    param.dstPitch = dest_stride;
++    param.WidthInBytes = _get_plane_width (data->info, i) * plane_n_components;
++    param.Height = _get_plane_height (data->info, i);
++
++    cuda_ret = cuMemcpy2D (&param);
+     if (cuda_ret != cudaSuccess) {
+       GST_ERROR_OBJECT (data->nvenc, "failed to copy GL texture %u into cuda "
+           "ret :%d", gl_mem->mem.tex_id, cuda_ret);
+@@ -1537,7 +1579,7 @@ _map_gl_input_buffer (GstGLContext * context, struct map_gl_input *data)
+     }
+ 
+     cuda_ret =
+-        cudaGraphicsUnmapResources (1, &data->in_gl_resource->cuda_texture, 0);
++        cuGraphicsUnmapResources (1, &data->in_gl_resource->cuda_texture, 0);
+     if (cuda_ret != cudaSuccess) {
+       GST_ERROR_OBJECT (data->nvenc, "failed to unmap GL texture %u from cuda "
+           "ret :%d", gl_mem->mem.tex_id, cuda_ret);
+@@ -1545,7 +1587,7 @@ _map_gl_input_buffer (GstGLContext * context, struct map_gl_input *data)
+     }
+ 
+     cuda_ret =
+-        cudaGraphicsUnregisterResource (data->in_gl_resource->cuda_texture);
++        cuGraphicsUnregisterResource (data->in_gl_resource->cuda_texture);
+     if (cuda_ret != cudaSuccess) {
+       GST_ERROR_OBJECT (data->nvenc, "failed to unregister GL texture %u from "
+           "cuda ret :%d", gl_mem->mem.tex_id, cuda_ret);
+@@ -1718,6 +1760,8 @@ gst_nv_base_enc_handle_frame (GstVideoEncoder * enc, GstVideoCodecFrame * frame)
+       goto error;
+     }
+ 
++    in_gl_resource->mapped = TRUE;
++
+     out_buf = g_async_queue_try_pop (nvenc->bitstream_pool);
+     if (out_buf == NULL) {
+       GST_DEBUG_OBJECT (nvenc, "wait for output buf to become available again");
+@@ -1900,12 +1944,10 @@ gst_nv_base_enc_finish (GstVideoEncoder * enc)
+ {
+   GstNvBaseEnc *nvenc = GST_NV_BASE_ENC (enc);
+ 
+-  GST_FIXME_OBJECT (enc, "implement finish");
+-
+-  gst_nv_base_enc_drain_encoder (nvenc);
++  if (!gst_nv_base_enc_drain_encoder (nvenc))
++    return GST_FLOW_ERROR;
+ 
+-  /* wait for encoder to output the remaining buffers */
+-  gst_nv_base_enc_stop_bitstream_thread (nvenc);
++  gst_nv_base_enc_stop_bitstream_thread (nvenc, FALSE);
+ 
+   return GST_FLOW_OK;
+ }
+diff --git a/sys/nvenc/gstnvenc.c b/sys/nvenc/gstnvenc.c
+index 30b5b13f1..8fa83fc92 100644
+--- a/sys/nvenc/gstnvenc.c
++++ b/sys/nvenc/gstnvenc.c
+@@ -23,8 +23,25 @@
+ 
+ #include "gstnvenc.h"
+ #include "gstnvh264enc.h"
++#include "gstnvh265enc.h"
++#include <gmodule.h>
++
++#ifdef _WIN32
++#ifdef _WIN64
++#define NVENC_LIBRARY_NAME "nvEncodeAPI64.dll"
++#else
++#define NVENC_LIBRARY_NAME "nvEncodeAPI.dll"
++#endif
++#else
++#define NVENC_LIBRARY_NAME "libnvidia-encode.so.1"
++#endif
++
++typedef NVENCSTATUS NVENCAPI
++tNvEncodeAPICreateInstance (NV_ENCODE_API_FUNCTION_LIST * functionList);
++tNvEncodeAPICreateInstance *nvEncodeAPICreateInstance;
+ 
+ GST_DEBUG_CATEGORY (gst_nvenc_debug);
++#define GST_CAT_DEFAULT gst_nvenc_debug
+ 
+ static NV_ENCODE_API_FUNCTION_LIST nvenc_api;
+ 
+@@ -285,9 +302,13 @@ gst_nvenc_create_cuda_context (guint device_id)
+   for (i = 0; i < dev_count; ++i) {
+     if (cuDeviceGet (&cdev, i) == CUDA_SUCCESS
+         && cuDeviceGetName (name, sizeof (name), cdev) == CUDA_SUCCESS
+-        && cuDeviceComputeCapability (&maj, &min, cdev) == CUDA_SUCCESS) {
+-      GST_INFO ("GPU #%d supports NVENC: %s (%s) (Compute SM %d.%d)",
+-          i, (((maj << 4) + min) >= 0x30) ? "yes" : "no", name, maj, min);
++        && cuDeviceGetAttribute (&maj,
++            CU_DEVICE_ATTRIBUTE_COMPUTE_CAPABILITY_MAJOR, cdev) == CUDA_SUCCESS
++        && cuDeviceGetAttribute (&min,
++            CU_DEVICE_ATTRIBUTE_COMPUTE_CAPABILITY_MINOR,
++            cdev) == CUDA_SUCCESS) {
++      GST_INFO ("GPU #%d supports NVENC: %s (%s) (Compute SM %d.%d)", i,
++          (((maj << 4) + min) >= 0x30) ? "yes" : "no", name, maj, min);
+       if (i == device_id) {
+         cuda_dev = cdev;
+       }
+@@ -321,19 +342,44 @@ gst_nvenc_destroy_cuda_context (CUcontext ctx)
+   return (cuCtxDestroy (ctx) == CUDA_SUCCESS);
+ }
+ 
++static gboolean
++load_nvenc_library (void)
++{
++  GModule *module;
++
++  module = g_module_open (NVENC_LIBRARY_NAME, G_MODULE_BIND_LAZY);
++  if (module == NULL) {
++    GST_ERROR ("%s", g_module_error ());
++    return FALSE;
++  }
++
++  if (!g_module_symbol (module, "NvEncodeAPICreateInstance",
++          (gpointer *) & nvEncodeAPICreateInstance)) {
++    GST_ERROR ("%s", g_module_error ());
++    return FALSE;
++  }
++
++  return TRUE;
++}
++
+ static gboolean
+ plugin_init (GstPlugin * plugin)
+ {
+   GST_DEBUG_CATEGORY_INIT (gst_nvenc_debug, "nvenc", 0, "Nvidia NVENC encoder");
+ 
+   nvenc_api.version = NV_ENCODE_API_FUNCTION_LIST_VER;
+-  if (NvEncodeAPICreateInstance (&nvenc_api) != NV_ENC_SUCCESS) {
++  if (!load_nvenc_library ())
++    return FALSE;
++
++  if (nvEncodeAPICreateInstance (&nvenc_api) != NV_ENC_SUCCESS) {
+     GST_ERROR ("Failed to get NVEncodeAPI function table!");
+   } else {
+     GST_INFO ("Created NVEncodeAPI instance, got function table");
+ 
+     gst_element_register (plugin, "nvh264enc", GST_RANK_PRIMARY * 2,
+         gst_nv_h264_enc_get_type ());
++    gst_element_register (plugin, "nvh265enc", GST_RANK_PRIMARY * 2,
++        gst_nv_h265_enc_get_type ());
+   }
+ 
+   return TRUE;
+diff --git a/sys/nvenc/gstnvenc.h b/sys/nvenc/gstnvenc.h
+index f4eb34b6b..2af23ed1e 100644
+--- a/sys/nvenc/gstnvenc.h
++++ b/sys/nvenc/gstnvenc.h
+@@ -23,11 +23,10 @@
+ #include <gst/gst.h>
+ #include <gst/video/video.h>
+ 
+-#include <nvEncodeAPI.h>
++#include "nvEncodeAPI.h"
+ #include <cuda.h>
+ 
+ GST_DEBUG_CATEGORY_EXTERN (gst_nvenc_debug);
+-#define GST_CAT_DEFAULT gst_nvenc_debug
+ 
+ CUcontext               gst_nvenc_create_cuda_context (guint device_id);
+ 
+diff --git a/sys/nvenc/gstnvh264enc.c b/sys/nvenc/gstnvh264enc.c
+index df25e7a59..5bae28095 100644
+--- a/sys/nvenc/gstnvh264enc.c
++++ b/sys/nvenc/gstnvh264enc.c
+@@ -27,23 +27,47 @@
+ 
+ #include <string.h>
+ 
+-#if HAVE_GST_GL
++GST_DEBUG_CATEGORY_STATIC (gst_nv_h264_enc_debug);
++#define GST_CAT_DEFAULT gst_nv_h264_enc_debug
++
++#if HAVE_NVENC_GST_GL
+ #include <cuda.h>
+ #include <cuda_runtime_api.h>
+ #include <cuda_gl_interop.h>
+-#define GST_USE_UNSTABLE_API
+ #include <gst/gl/gl.h>
+ #endif
+ 
+ #define parent_class gst_nv_h264_enc_parent_class
+ G_DEFINE_TYPE (GstNvH264Enc, gst_nv_h264_enc, GST_TYPE_NV_BASE_ENC);
+ 
++#if HAVE_NVENC_GST_GL
++#define GL_CAPS_STR \
++  ";" \
++  "video/x-raw(memory:GLMemory), " \
++  "format = (string) { NV12, Y444 }, " \
++  "width = (int) [ 16, 4096 ], height = (int) [ 16, 4096 ], " \
++  "framerate = (fraction) [0, MAX]," \
++  "interlace-mode = { progressive, mixed, interleaved } "
++#else
++#define GL_CAPS_STR ""
++#endif
++
+ /* *INDENT-OFF* */
++static GstStaticPadTemplate sink_factory = GST_STATIC_PAD_TEMPLATE ("sink",
++    GST_PAD_SINK,
++    GST_PAD_ALWAYS,
++    GST_STATIC_CAPS ("video/x-raw, " "format = (string) { NV12, I420 }, "       // TODO: YV12, Y444 support
++        "width = (int) [ 16, 4096 ], height = (int) [ 16, 4096 ], "
++        "framerate = (fraction) [0, MAX],"
++        "interlace-mode = { progressive, mixed, interleaved } "
++        GL_CAPS_STR
++    ));
++
+ static GstStaticPadTemplate src_factory = GST_STATIC_PAD_TEMPLATE ("src",
+     GST_PAD_SRC,
+     GST_PAD_ALWAYS,
+     GST_STATIC_CAPS ("video/x-h264, "
+-        "width = (int) [ 1, 4096 ], height = (int) [ 1, 2160 ], "
++        "width = (int) [ 1, 4096 ], height = (int) [ 1, 4096 ], "
+         "framerate = (fraction) [0/1, MAX], "
+         "stream-format = (string) byte-stream, " // TODO: avc support
+         "alignment = (string) au, "
+@@ -89,14 +113,18 @@ gst_nv_h264_enc_class_init (GstNvH264EncClass * klass)
+   nvenc_class->set_src_caps = gst_nv_h264_enc_set_src_caps;
+   nvenc_class->set_pic_params = gst_nv_h264_enc_set_pic_params;
+ 
++  gst_element_class_add_static_pad_template (element_class, &sink_factory);
+   gst_element_class_add_static_pad_template (element_class, &src_factory);
+ 
+   gst_element_class_set_static_metadata (element_class,
+       "NVENC H.264 Video Encoder",
+-      "Codec/Encoder/Video",
++      "Codec/Encoder/Video/Hardware",
+       "Encode H.264 video streams using NVIDIA's hardware-accelerated NVENC encoder API",
+       "Tim-Philipp Müller <tim@centricular.com>\n"
+       "Matthew Waters <matthew@centricular.com>");
++
++  GST_DEBUG_CATEGORY_INIT (gst_nv_h264_enc_debug,
++      "nvh264enc", 0, "Nvidia H.264 encoder");
+ }
+ 
+ static void
+@@ -119,6 +147,9 @@ _get_supported_profiles (GstNvH264Enc * nvenc)
+   GValue val = G_VALUE_INIT;
+   guint i, n, n_profiles;
+ 
++  if (nvenc->supported_profiles)
++    return TRUE;
++
+   nv_ret =
+       NvEncGetEncodeProfileGUIDCount (GST_NV_BASE_ENC (nvenc)->encoder,
+       NV_ENC_CODEC_H264_GUID, &n);
+@@ -161,8 +192,8 @@ _get_supported_profiles (GstNvH264Enc * nvenc)
+     return FALSE;
+ 
+   GST_OBJECT_LOCK (nvenc);
+-  g_free (nvenc->supported_profiles);
+-  nvenc->supported_profiles = g_memdup (&list, sizeof (GValue));
++  nvenc->supported_profiles = g_new0 (GValue, 1);
++  *nvenc->supported_profiles = list;
+   GST_OBJECT_UNLOCK (nvenc);
+ 
+   return TRUE;
+@@ -211,6 +242,8 @@ gst_nv_h264_enc_close (GstVideoEncoder * enc)
+   GstNvH264Enc *nvenc = GST_NV_H264_ENC (enc);
+ 
+   GST_OBJECT_LOCK (nvenc);
++  if (nvenc->supported_profiles)
++    g_value_unset (nvenc->supported_profiles);
+   g_free (nvenc->supported_profiles);
+   nvenc->supported_profiles = NULL;
+   GST_OBJECT_UNLOCK (nvenc);
+@@ -244,6 +277,7 @@ _get_interlace_modes (GstNvH264Enc * nvenc)
+     gst_value_list_append_value (list, &val);
+     g_value_set_static_string (&val, "mixed");
+     gst_value_list_append_value (list, &val);
++    g_value_unset (&val);
+   }
+   /* TODO: figure out what nvenc frame based interlacing means in gst terms */
+ 
+@@ -269,6 +303,7 @@ gst_nv_h264_enc_getcaps (GstVideoEncoder * enc, GstCaps * filter)
+ 
+     val = _get_interlace_modes (nvenc);
+     gst_caps_set_value (supported_incaps, "interlace-mode", val);
++    g_value_unset (val);
+     g_free (val);
+ 
+     GST_LOG_OBJECT (enc, "codec input caps %" GST_PTR_FORMAT, supported_incaps);
