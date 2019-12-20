@@ -1,3 +1,167 @@
+diff --git a/gst-libs/gst/mpegts/gst-scte-section.c b/gst-libs/gst/mpegts/gst-scte-section.c
+new file mode 100644
+index 000000000..fcdafbc48
+--- /dev/null
++++ b/gst-libs/gst/mpegts/gst-scte-section.c
+@@ -0,0 +1,158 @@
++/*
++  * Copyright (C) 2019 Lajos Okos
++  *
++  * Authors:
++  *   Lajos Okos <lajos.okos@gmail.com>
++  *
++  * This library is free software; you can redistribute it and/or
++  * modify it under the terms of the GNU Library General Public
++  * License as published by the Free Software Foundation; either
++  * version 2 of the License, or (at your option) any later version.
++  *
++  * This library is distributed in the hope that it will be useful,
++  * but WITHOUT ANY WARRANTY; without even the implied warranty of
++  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
++  * Library General Public License for more details.
++  *
++  * You should have received a copy of the GNU Library General Public
++  * License along with this library; if not, write to the
++  * Free Software Foundation, Inc., 51 Franklin St, Fifth Floor,
++  * Boston, MA 02110-1301, USA.
++*/
++
++
++#ifdef HAVE_CONFIG_H
++#include "config.h"
++#endif
++
++#include <string.h>
++#include <stdlib.h>
++ 
++#include "mpegts.h"
++#include "gstmpegts-private.h"
++
++static void
++_gst_mpegts_scte_splice_command_free (GstMpegtsScteSpliceInsert *spinsert)
++{
++   //g_ptr_array_unref (spinfo->???);
++   //g_ptr_array_unref (spinfo->descriptors);
++   g_slice_free (GstMpegtsScteSpliceInsert, spinsert);
++}
++
++static gpointer
++_parse_scte_splice_info (GstMpegtsSection * section)
++{
++   GstMpegtsScteSpliceInfo *spinfo = NULL;
++   guint8 *data, *end;
++    
++   spinfo = g_slice_new0 (GstMpegtsScteSpliceInfo);
++ 
++   data = section->data;
++   end = data + section->section_length;
++   spinfo->table_id=*data++;
++   spinfo->section_syntax_indicator=*data>>7;
++   spinfo->private_indicator=(*data>>6)&0x01;
++   spinfo->section_length=(*data&0x0f*256) + *(data+1);
++   data+=2;
++   spinfo->protocol_version=*data++;
++   spinfo->encrypted_packet=*data>>7;
++   spinfo->encryption_algorith=(*data>>1)&0x3f;
++   spinfo->pts_adjustment=(guint64)(*data&0x01)<<32|*(data+1)<<24|*(data+2)<<16|*(data+3)<<8|*(data+4);
++   data+=5;
++   spinfo->cw_index=*data++;
++   spinfo->tier=*data<<4|(*(data+1)&0xf0)>>4;
++   spinfo->splice_command_length=(*(data+1)&0x0f)<<4|*(data+2);
++   data+=3;
++   spinfo->splice_command_type=*data++;
++   switch (spinfo->splice_command_type) {
++      case 0x05: {  //Splice Insert
++        GstMpegtsScteSpliceInsert *spinsert = &spinfo->splice_insert;
++        spinsert->splice_event_id=*data<<24|*(data+1)<<16|*(data+2)<<8|*(data+3);
++        data+=4;
++        spinsert->splice_event_cancel_indicator=*data++>>7;
++        spinsert->out_of_network_indicator=*data>>7;
++        spinsert->program_splice_flag=(*data>>6)&0x01;
++        spinsert->duration_flag=(*data>>5)&0x01;
++        spinsert->splice_immediate_flag=(*data++>>4)&0x01;
++        spinsert->time_specified_flag=*data>>7;
++        spinsert->pts_time=(((guint64)((*data)&0x01)<<32)|(*(data+1)<<24)|(*(data+2)<<16)|(*(data+3)<<8)|*(data+4)) & 0x1ffffffff;
++        data+=5;
++        spinsert->unique_program_id=*data<<8|*(data+1);
++        data+=2;
++        spinsert->avail_num=*data++;
++        spinsert->avails_expected=*data++;
++     }
++      break;
++      case 0x00:   //Splice Null
++      default: {}    //Unkown command
++        //spinfo->splice_command=NULL;
++   }
++
++   return (gpointer) spinfo;
++}
++
++static void
++_gst_mpegts_scte_splice_info_free (GstMpegtsScteSpliceInfo * spinfo)
++ {
++   //g_ptr_array_unref (spinfo->???);
++   //g_ptr_array_unref (spinfo->descriptors);
++   g_slice_free (GstMpegtsScteSpliceInfo, spinfo);
++}
++
++const GstMpegtsScteSpliceInfo *
++gst_mpegts_section_get_scte_splice_info (GstMpegtsSection * section)
++ {
++   g_return_val_if_fail (section->section_type == GST_MPEGTS_SECTION_SCTE_SPLICING,
++       NULL);
++   g_return_val_if_fail (section->cached_parsed || section->data, NULL);
++ 
++   if (!section->cached_parsed)
++     section->cached_parsed =
++         __common_section_checks (section, 3, _parse_scte_splice_info,
++         (GDestroyNotify) _gst_mpegts_scte_splice_info_free);
++ 
++   return (const GstMpegtsScteSpliceInfo *) section->cached_parsed;
++}
++
++/* 
++GstStructure should have the below fields:
++    splice-event-id (uint) : Must be present. Repeting IDs are ignored by downstream elements!!!
++    out-of-network-indicator (boolean) : 1 means exit from the network feed, 0 means return
++    pts-time (uint64) : PTS when splicing should happen
++    program-number (uint) : program number the event belons to. Used in mpegtsbase.c
++*/
++
++const GstMpegtsScteSpliceInfo*
++gst_mpegts_set_scte_splice_info(GstStructure *s)
++{
++    GstMpegtsScteSpliceInfo *spinfo = NULL;
++    GstMpegtsScteSpliceInsert *spinsert = NULL;
++
++    spinfo = g_slice_new0(GstMpegtsScteSpliceInfo);
++    spinsert = &spinfo->splice_insert;
++
++    spinfo->table_id = 0xfc; // Defined by the standard
++    spinfo->section_syntax_indicator = 0; // Defined by the standard
++    spinfo->private_indicator = 0; // Defined by the standard
++    spinfo->section_length = 0; // FIXME: Should be better calculated!!!
++    spinfo->protocol_version = 0; // Defined by the standard
++    spinfo->encrypted_packet = 0; // Defined by the standard
++    spinfo->encryption_algorith = 0; // Defined by the standard
++    spinfo->pts_adjustment = 0;
++    spinfo->cw_index = 0;
++    spinfo->tier = 0xfff;
++    spinfo->splice_command_length = 0; // FIXME: Should be better calculated!!!
++    spinfo->splice_command_type = 0x05;
++    gst_structure_get_uint(s, "splice-event-id", &spinsert->splice_event_id);
++    spinsert->splice_event_cancel_indicator = 0; // Not implemented yet. FIXME: Should be implemented sooner or later.
++    gst_structure_get_boolean(s,"out-of-network-indicator",&spinsert->out_of_network_indicator);
++    spinsert->program_splice_flag = 1;  // Program splice mode
++    spinsert->duration_flag = 0;  // No break duration ios indicated in the event
++    spinsert->splice_immediate_flag = 0;  // Splice time is present
++    spinsert->time_specified_flag = 1;  // PTS present
++    gst_structure_get_uint64(s,"pts-time",&spinsert->pts_time);
++    spinsert->unique_program_id = 0;
++    spinsert->avail_num = 0;
++    spinsert->avails_expected = 0;
++    return (const GstMpegtsScteSpliceInfo*)spinfo;
++}
 diff --git a/configure.ac b/configure.ac
 index 943412cfb..14627a124 100644
 --- a/configure.ac
