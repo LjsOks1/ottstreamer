@@ -1,167 +1,3 @@
-diff --git a/gst-libs/gst/mpegts/gst-scte-section.c b/gst-libs/gst/mpegts/gst-scte-section.c
-new file mode 100644
-index 000000000..fcdafbc48
---- /dev/null
-+++ b/gst-libs/gst/mpegts/gst-scte-section.c
-@@ -0,0 +1,158 @@
-+/*
-+  * Copyright (C) 2019 Lajos Okos
-+  *
-+  * Authors:
-+  *   Lajos Okos <lajos.okos@gmail.com>
-+  *
-+  * This library is free software; you can redistribute it and/or
-+  * modify it under the terms of the GNU Library General Public
-+  * License as published by the Free Software Foundation; either
-+  * version 2 of the License, or (at your option) any later version.
-+  *
-+  * This library is distributed in the hope that it will be useful,
-+  * but WITHOUT ANY WARRANTY; without even the implied warranty of
-+  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
-+  * Library General Public License for more details.
-+  *
-+  * You should have received a copy of the GNU Library General Public
-+  * License along with this library; if not, write to the
-+  * Free Software Foundation, Inc., 51 Franklin St, Fifth Floor,
-+  * Boston, MA 02110-1301, USA.
-+*/
-+
-+
-+#ifdef HAVE_CONFIG_H
-+#include "config.h"
-+#endif
-+
-+#include <string.h>
-+#include <stdlib.h>
-+ 
-+#include "mpegts.h"
-+#include "gstmpegts-private.h"
-+
-+static void
-+_gst_mpegts_scte_splice_command_free (GstMpegtsScteSpliceInsert *spinsert)
-+{
-+   //g_ptr_array_unref (spinfo->???);
-+   //g_ptr_array_unref (spinfo->descriptors);
-+   g_slice_free (GstMpegtsScteSpliceInsert, spinsert);
-+}
-+
-+static gpointer
-+_parse_scte_splice_info (GstMpegtsSection * section)
-+{
-+   GstMpegtsScteSpliceInfo *spinfo = NULL;
-+   guint8 *data, *end;
-+    
-+   spinfo = g_slice_new0 (GstMpegtsScteSpliceInfo);
-+ 
-+   data = section->data;
-+   end = data + section->section_length;
-+   spinfo->table_id=*data++;
-+   spinfo->section_syntax_indicator=*data>>7;
-+   spinfo->private_indicator=(*data>>6)&0x01;
-+   spinfo->section_length=(*data&0x0f*256) + *(data+1);
-+   data+=2;
-+   spinfo->protocol_version=*data++;
-+   spinfo->encrypted_packet=*data>>7;
-+   spinfo->encryption_algorith=(*data>>1)&0x3f;
-+   spinfo->pts_adjustment=(guint64)(*data&0x01)<<32|*(data+1)<<24|*(data+2)<<16|*(data+3)<<8|*(data+4);
-+   data+=5;
-+   spinfo->cw_index=*data++;
-+   spinfo->tier=*data<<4|(*(data+1)&0xf0)>>4;
-+   spinfo->splice_command_length=(*(data+1)&0x0f)<<4|*(data+2);
-+   data+=3;
-+   spinfo->splice_command_type=*data++;
-+   switch (spinfo->splice_command_type) {
-+      case 0x05: {  //Splice Insert
-+        GstMpegtsScteSpliceInsert *spinsert = &spinfo->splice_insert;
-+        spinsert->splice_event_id=*data<<24|*(data+1)<<16|*(data+2)<<8|*(data+3);
-+        data+=4;
-+        spinsert->splice_event_cancel_indicator=*data++>>7;
-+        spinsert->out_of_network_indicator=*data>>7;
-+        spinsert->program_splice_flag=(*data>>6)&0x01;
-+        spinsert->duration_flag=(*data>>5)&0x01;
-+        spinsert->splice_immediate_flag=(*data++>>4)&0x01;
-+        spinsert->time_specified_flag=*data>>7;
-+        spinsert->pts_time=(((guint64)((*data)&0x01)<<32)|(*(data+1)<<24)|(*(data+2)<<16)|(*(data+3)<<8)|*(data+4)) & 0x1ffffffff;
-+        data+=5;
-+        spinsert->unique_program_id=*data<<8|*(data+1);
-+        data+=2;
-+        spinsert->avail_num=*data++;
-+        spinsert->avails_expected=*data++;
-+     }
-+      break;
-+      case 0x00:   //Splice Null
-+      default: {}    //Unkown command
-+        //spinfo->splice_command=NULL;
-+   }
-+
-+   return (gpointer) spinfo;
-+}
-+
-+static void
-+_gst_mpegts_scte_splice_info_free (GstMpegtsScteSpliceInfo * spinfo)
-+ {
-+   //g_ptr_array_unref (spinfo->???);
-+   //g_ptr_array_unref (spinfo->descriptors);
-+   g_slice_free (GstMpegtsScteSpliceInfo, spinfo);
-+}
-+
-+const GstMpegtsScteSpliceInfo *
-+gst_mpegts_section_get_scte_splice_info (GstMpegtsSection * section)
-+ {
-+   g_return_val_if_fail (section->section_type == GST_MPEGTS_SECTION_SCTE_SPLICING,
-+       NULL);
-+   g_return_val_if_fail (section->cached_parsed || section->data, NULL);
-+ 
-+   if (!section->cached_parsed)
-+     section->cached_parsed =
-+         __common_section_checks (section, 3, _parse_scte_splice_info,
-+         (GDestroyNotify) _gst_mpegts_scte_splice_info_free);
-+ 
-+   return (const GstMpegtsScteSpliceInfo *) section->cached_parsed;
-+}
-+
-+/* 
-+GstStructure should have the below fields:
-+    splice-event-id (uint) : Must be present. Repeting IDs are ignored by downstream elements!!!
-+    out-of-network-indicator (boolean) : 1 means exit from the network feed, 0 means return
-+    pts-time (uint64) : PTS when splicing should happen
-+    program-number (uint) : program number the event belons to. Used in mpegtsbase.c
-+*/
-+
-+const GstMpegtsScteSpliceInfo*
-+gst_mpegts_set_scte_splice_info(GstStructure *s)
-+{
-+    GstMpegtsScteSpliceInfo *spinfo = NULL;
-+    GstMpegtsScteSpliceInsert *spinsert = NULL;
-+
-+    spinfo = g_slice_new0(GstMpegtsScteSpliceInfo);
-+    spinsert = &spinfo->splice_insert;
-+
-+    spinfo->table_id = 0xfc; // Defined by the standard
-+    spinfo->section_syntax_indicator = 0; // Defined by the standard
-+    spinfo->private_indicator = 0; // Defined by the standard
-+    spinfo->section_length = 0; // FIXME: Should be better calculated!!!
-+    spinfo->protocol_version = 0; // Defined by the standard
-+    spinfo->encrypted_packet = 0; // Defined by the standard
-+    spinfo->encryption_algorith = 0; // Defined by the standard
-+    spinfo->pts_adjustment = 0;
-+    spinfo->cw_index = 0;
-+    spinfo->tier = 0xfff;
-+    spinfo->splice_command_length = 0; // FIXME: Should be better calculated!!!
-+    spinfo->splice_command_type = 0x05;
-+    gst_structure_get_uint(s, "splice-event-id", &spinsert->splice_event_id);
-+    spinsert->splice_event_cancel_indicator = 0; // Not implemented yet. FIXME: Should be implemented sooner or later.
-+    gst_structure_get_boolean(s,"out-of-network-indicator",&spinsert->out_of_network_indicator);
-+    spinsert->program_splice_flag = 1;  // Program splice mode
-+    spinsert->duration_flag = 0;  // No break duration ios indicated in the event
-+    spinsert->splice_immediate_flag = 0;  // Splice time is present
-+    spinsert->time_specified_flag = 1;  // PTS present
-+    gst_structure_get_uint64(s,"pts-time",&spinsert->pts_time);
-+    spinsert->unique_program_id = 0;
-+    spinsert->avail_num = 0;
-+    spinsert->avails_expected = 0;
-+    return (const GstMpegtsScteSpliceInfo*)spinfo;
-+}
 diff --git a/configure.ac b/configure.ac
 index 943412cfb..14627a124 100644
 --- a/configure.ac
@@ -700,7 +536,7 @@ index 80a454f68..0deb25bb0 100644
  
  #define MPEGTS_BIT_SET(field, offs)    ((field)[(offs) >> 3] |=  (1 << ((offs) & 0x7)))
 diff --git a/gst/mpegtsdemux/mpegtspacketizer.c b/gst/mpegtsdemux/mpegtspacketizer.c
-index cc46ebb25..58adec671 100644
+index cc46ebb25..8465f8743 100644
 --- a/gst/mpegtsdemux/mpegtspacketizer.c
 +++ b/gst/mpegtsdemux/mpegtspacketizer.c
 @@ -45,23 +45,19 @@ G_DEFINE_TYPE_EXTENDED (MpegTSPacketizer2, mpegts_packetizer, G_TYPE_OBJECT, 0,
@@ -1173,15 +1009,15 @@ index cc46ebb25..58adec671 100644
      pcrtable->base_pcrtime = pts;
    }
  
-@@ -2332,7 +2373,7 @@ mpegts_packetizer_pts_to_ts (MpegTSPacketizer2 * packetizer,
- 
-   PACKETIZER_GROUP_UNLOCK (packetizer);
- 
--  GST_DEBUG ("Returning timestamp %" GST_TIME_FORMAT " for pts %"
-+  GST_INFO ("Returning timestamp %" GST_TIME_FORMAT " for pts %"
-       GST_TIME_FORMAT " pcr_pid:0x%04x", GST_TIME_ARGS (res),
-       GST_TIME_ARGS (pts), pcr_pid);
-   return res;
+@@ -2242,7 +2283,7 @@ mpegts_packetizer_pts_to_ts (MpegTSPacketizer2 * packetizer,
+       res = GST_CLOCK_TIME_NONE;
+     else {
+       GstClockTime tmp = pcrtable->base_time + pcrtable->skew;
+-      if (tmp + res > pcrtable->base_pcrtime)
++      if (tmp + res >= pcrtable->base_pcrtime)
+         res += tmp - pcrtable->base_pcrtime;
+       else
+         res = GST_CLOCK_TIME_NONE;
 diff --git a/gst/mpegtsdemux/mpegtspacketizer.h b/gst/mpegtsdemux/mpegtspacketizer.h
 index 0cf83a60d..bc5b9e830 100644
 --- a/gst/mpegtsdemux/mpegtspacketizer.h
@@ -1215,9 +1051,15 @@ index 0cf83a60d..bc5b9e830 100644
  typedef enum {
    PACKET_BAD       = FALSE,
 diff --git a/gst/mpegtsdemux/mpegtsparse.c b/gst/mpegtsdemux/mpegtsparse.c
-index 8e227baad..92958c2d8 100644
+index 8e227baad..6d5fe2b8b 100644
 --- a/gst/mpegtsdemux/mpegtsparse.c
 +++ b/gst/mpegtsdemux/mpegtsparse.c
+@@ -1,4 +1,4 @@
+-/*
++ /*
+  * mpegtsparse.c - 
+  * Copyright (C) 2007 Alessandro Decina
+  * 
 @@ -33,6 +33,8 @@
  #include "mpegtsbase.h"
  #include "mpegtsparse.h"
@@ -1433,7 +1275,7 @@ index 8e227baad..92958c2d8 100644
    g_free (stream_id);
  
    gst_element_add_pad (element, pad);
-@@ -525,6 +635,612 @@ mpegts_parse_release_pad (GstElement * element, GstPad * pad)
+@@ -525,6 +635,625 @@ mpegts_parse_release_pad (GstElement * element, GstPad * pad)
    gst_element_remove_pad (element, pad);
  }
  
@@ -1561,7 +1403,7 @@ index 8e227baad..92958c2d8 100644
 +    info.data[1] = (pid & 0x1fff) >> 8;
 +    info.data[2] = (pid & 0x00ff);
 +    info.data[3] = 0x20 | (tspad->program->program.streams[pid]->cc % 16);
-+    info.data[4] = 188 - 11;
++    info.data[4] = 188 - 5;
 +    info.data[5] = 0x10;
 +    pcr_base = (GSTTIME_TO_PCRTIME(new_pcr)/300)&0x1ffffffff; //truncate to 33 bits
 +    pcr_ext = GSTTIME_TO_PCRTIME(new_pcr)%300;
@@ -1626,11 +1468,12 @@ index 8e227baad..92958c2d8 100644
 +        tspad->program_number, packet->pid, packet->scram_afc_cc,
 +        packet->payload_unit_start_indicator,packet->data_end-packet->data_start);
 +
-+    if(parse->parent.parse_private_sections==TRUE && packet->payload_unit_start_indicator==TRUE) {
++    if( packet->payload_unit_start_indicator && MPEGTS_BIT_IS_SET(parse->parent.is_pes,packet->pid)) {
 +        //Get PES header from packet
 +        pesparsing_res=mpegts_parse_pes_header(packet->payload,packet->data_end-packet->payload,&pes);
 +        if(pesparsing_res==PES_PARSING_OK) {
-+            GST_DEBUG_OBJECT(parse,"PES header parsed successfully from pid:0x%04x",packet->pid);
++          GST_LOG_OBJECT(parse,"PES header parsed successfully from pid:0x%04x PTS:%"GST_TIME_FORMAT,
++            packet->pid,GST_TIME_ARGS(MPEGTIME_TO_GSTTIME(pes.PTS)));
 +        } else if(pesparsing_res==PES_PARSING_NEED_MORE) {
 +            GST_ERROR_OBJECT(parse,"PES Header couldn't be parsed for pid:0x%04x. Need more data.",packet->pid);
 +        } else {
@@ -1639,7 +1482,7 @@ index 8e227baad..92958c2d8 100644
 +    }
 +
 +    /* Search for X31 teletext packets */
-+    if (parse->parent.parse_private_sections == TRUE && MPEGTS_BIT_IS_SET(parse->parent.is_pes, packet->pid)) {
++    if (parse->parent.parse_private_sections && MPEGTS_BIT_IS_SET(parse->parent.is_pes, packet->pid)) {
 +        if (tspad->program->program.streams[packet->pid]->stream_type == GST_MPEGTS_STREAM_TYPE_PRIVATE_PES_PACKETS) {
 +            if (packet->payload_unit_start_indicator) {
 +                if (pesparsing_res == PES_PARSING_OK) {
@@ -1689,6 +1532,8 @@ index 8e227baad..92958c2d8 100644
 +                            txt_payload += *(txt_payload+1)+1; //Move to the next txt data block in the TS packet payload
 +                        }
 +                    }
++                } else {
++                    GST_ERROR_OBJECT(parse,"Couldn't decode PES header in teletext packet. (res:%i) X31 cannot be detected.",pesparsing_res);
 +                }
 +            }
 +        }
@@ -1722,7 +1567,8 @@ index 8e227baad..92958c2d8 100644
 +                gint64 pcr_diff; 
 +                if(pes.DTS!=GST_CLOCK_TIME_NONE) {
 +                    //Have a DTS, lets assume that first packet is 2 frames back
-+                    pcr_2=pes.PTS-(90000*0.08); //90kHz*80ms -- duration of 2 frames
++                    //pcr_2=pes.PTS-(90000*0.08); //90kHz*80ms -- duration of 2 frames
++                    pcr_2=pes.DTS;
 +                } else {
 +                    pcr_2=pes.PTS; //We just have I and P frames, PTS is monoton increasing
 +                }
@@ -1737,14 +1583,15 @@ index 8e227baad..92958c2d8 100644
 +                    GST_TIME_ARGS(PCRTIME_TO_GSTTIME(packet->pcr)),
 +                    GST_TIME_ARGS(ideal_pcr_0),
 +                    pcr_diff/1000000);
-+                set_packet_pcr(packet,ideal_pcr_0);
++                //Ignore PCR adjustment for now....
++                //set_packet_pcr(packet,ideal_pcr_0);
 +                packet->pcr=mpegts_packetizer_compute_pcr(packet->data_start+6);
 +                GST_DEBUG_OBJECT(parse,"Packet PCR has been changed to %"GST_TIME_FORMAT,GST_TIME_ARGS(PCRTIME_TO_GSTTIME(packet->pcr)));
 +            } else {
 +                GST_ERROR_OBJECT(parse,"Discontinuity detected but couldn't parse PES header.");
 +            }
 +        }
-+        GST_DEBUG_OBJECT(parse,"PCR:%"GST_TIME_FORMAT " current_timestamp:%"GST_TIME_FORMAT,
++        GST_LOG_OBJECT(parse,"PCR:%"GST_TIME_FORMAT " current_timestamp:%"GST_TIME_FORMAT,
 +            GST_TIME_ARGS(PCRTIME_TO_GSTTIME(packet->pcr)),
 +            GST_TIME_ARGS(current_timestamp));
 +    }
@@ -1878,15 +1725,23 @@ index 8e227baad..92958c2d8 100644
 +            GST_BUFFER_OFFSET_END(tspad->pending_packets) = GST_BUFFER_OFFSET(tspad->pending_packets) + gst_buffer_get_size(tspad->pending_packets);
 +        }
 +
-+        GST_DEBUG_OBJECT(parse, "Pushing out pending packets...  Timestamp:%"GST_TIME_FORMAT " DUR:%"GST_TIME_FORMAT " SIZE:%ld FIRST_PCR:%"GST_TIME_FORMAT 
++        if(parse->parent.parse_private_sections==TRUE) {
++            GST_DEBUG_OBJECT(parse, "Pushing out pending packets...  Timestamp:%"GST_TIME_FORMAT " DUR:%"GST_TIME_FORMAT " SIZE:%ld FIRST_PCR:%"GST_TIME_FORMAT 
 +                                " LAST_PCR:%" GST_TIME_FORMAT " PTS_MIN:%"GST_TIME_FORMAT " PTS_MAX:%"GST_TIME_FORMAT, 
-+            GST_TIME_ARGS(GST_BUFFER_PTS(tspad->pending_packets)),
-+            GST_TIME_ARGS(GST_BUFFER_DURATION(tspad->pending_packets)),
-+            gst_buffer_get_size(tspad->pending_packets),
-+            GST_TIME_ARGS(PCRTIME_TO_GSTTIME(tspad->first_pcr)),
-+            GST_TIME_ARGS(PCRTIME_TO_GSTTIME(tspad->last_pcr)),
-+            GST_TIME_ARGS(MPEGTIME_TO_GSTTIME(tspad->min_pts)),
-+            GST_TIME_ARGS(MPEGTIME_TO_GSTTIME(tspad->max_pts)));
++                GST_TIME_ARGS(GST_BUFFER_PTS(tspad->pending_packets)),
++                GST_TIME_ARGS(GST_BUFFER_DURATION(tspad->pending_packets)),
++                gst_buffer_get_size(tspad->pending_packets),
++                GST_TIME_ARGS(PCRTIME_TO_GSTTIME(tspad->first_pcr)),
++                GST_TIME_ARGS(PCRTIME_TO_GSTTIME(tspad->last_pcr)),
++                GST_TIME_ARGS(MPEGTIME_TO_GSTTIME(tspad->min_pts)),
++                GST_TIME_ARGS(MPEGTIME_TO_GSTTIME(tspad->max_pts)));
++        } else {
++            GST_DEBUG_OBJECT(parse, "Pushing out pending packets...  Timestamp:%"GST_TIME_FORMAT " DUR:%"GST_TIME_FORMAT " SIZE:%ld FIRST_PCR:%"GST_TIME_FORMAT, 
++                GST_TIME_ARGS(GST_BUFFER_PTS(tspad->pending_packets)),
++                GST_TIME_ARGS(GST_BUFFER_DURATION(tspad->pending_packets)),
++                gst_buffer_get_size(tspad->pending_packets),
++                GST_TIME_ARGS(PCRTIME_TO_GSTTIME(tspad->first_pcr)));
++        }
 +
 +        ret = gst_pad_push(tspad->pad, tspad->pending_packets);
 +        ret = gst_flow_combiner_update_flow(parse->flowcombiner, ret);
@@ -1943,7 +1798,7 @@ index 8e227baad..92958c2d8 100644
 +            GST_ERROR_OBJECT(parse,"Created buffer but couldn't set timestamp, offset and PCR.");
 +        }
 +        if ((parse->parent.parse_private_sections==TRUE) && (packet->afc_flags & 0x10) && (packet->afc_flags & 0x40) 
-+            && (packet->payload_unit_start_indicator==TRUE)) { //packet has PCR and random-access flags and parse_private_section==TRUE
++            && (packet->payload_unit_start_indicator)) { //packet has PCR and random-access flags and parse_private_section==TRUE
 +            if (pesparsing_res == PES_PARSING_OK) {
 +                tspad->min_pts=tspad->max_pts=pes.PTS;
 +                GST_DEBUG_OBJECT(parse,"Start new buffer with  Timestamp:%" GST_TIME_FORMAT " PCR:%" GST_TIME_FORMAT " PTS:%" GST_TIME_FORMAT " Diff:%" GST_TIME_FORMAT, 
@@ -2046,7 +1901,7 @@ index 8e227baad..92958c2d8 100644
  static GstFlowReturn
  mpegts_parse_tspad_push_section (MpegTSParse2 * parse, MpegTSParsePad * tspad,
      GstMpegtsSection * section, MpegTSPacketizerPacket * packet)
-@@ -549,17 +1265,12 @@ mpegts_parse_tspad_push_section (MpegTSParse2 * parse, MpegTSParsePad * tspad,
+@@ -549,17 +1278,12 @@ mpegts_parse_tspad_push_section (MpegTSParse2 * parse, MpegTSParsePad * tspad,
      }
    }
  
@@ -2066,7 +1921,7 @@ index 8e227baad..92958c2d8 100644
    }
  
    GST_LOG_OBJECT (parse, "Returning %s", gst_flow_get_name (ret));
-@@ -572,7 +1283,6 @@ mpegts_parse_tspad_push (MpegTSParse2 * parse, MpegTSParsePad * tspad,
+@@ -572,7 +1296,6 @@ mpegts_parse_tspad_push (MpegTSParse2 * parse, MpegTSParsePad * tspad,
  {
    GstFlowReturn ret = GST_FLOW_OK;
    MpegTSBaseProgram *bp = NULL;
@@ -2074,7 +1929,7 @@ index 8e227baad..92958c2d8 100644
    if (tspad->program_number != -1) {
      if (tspad->program)
        bp = (MpegTSBaseProgram *) tspad->program;
-@@ -580,24 +1290,15 @@ mpegts_parse_tspad_push (MpegTSParse2 * parse, MpegTSParsePad * tspad,
+@@ -580,24 +1303,15 @@ mpegts_parse_tspad_push (MpegTSParse2 * parse, MpegTSParsePad * tspad,
        bp = mpegts_base_get_program ((MpegTSBase *) parse,
            tspad->program_number);
    }
@@ -2101,7 +1956,7 @@ index 8e227baad..92958c2d8 100644
  static void
  pad_clear_for_push (GstPad * pad, MpegTSParse2 * parse)
  {
-@@ -671,7 +1372,7 @@ mpegts_parse_push (MpegTSBase * base, MpegTSPacketizerPacket * packet,
+@@ -671,7 +1385,7 @@ mpegts_parse_push (MpegTSBase * base, MpegTSPacketizerPacket * packet,
          pads_cookie = GST_ELEMENT_CAST (parse)->pads_cookie;
          srcpads = parse->srcpads;
        } else {
@@ -2110,7 +1965,7 @@ index 8e227baad..92958c2d8 100644
          /* Get next pad */
          srcpads = g_list_next (srcpads);
        }
-@@ -708,7 +1409,7 @@ mpegts_parse_inspect_packet (MpegTSBase * base, MpegTSPacketizerPacket * packet)
+@@ -708,7 +1422,7 @@ mpegts_parse_inspect_packet (MpegTSBase * base, MpegTSPacketizerPacket * packet)
      if (parse->pcr_pid == packet->pid) {
        parse->current_pcr = mpegts_packetizer_pts_to_ts (base->packetizer,
            PCRTIME_TO_GSTTIME (packet->pcr), parse->pcr_pid);
@@ -2119,7 +1974,7 @@ index 8e227baad..92958c2d8 100644
            GST_TIME_ARGS (parse->current_pcr), packet->pcr);
        if (parse->base_pcr == GST_CLOCK_TIME_NONE) {
          parse->base_pcr = parse->current_pcr;
-@@ -744,9 +1445,9 @@ drain_pending_buffers (MpegTSParse2 * parse, gboolean drain_all)
+@@ -744,9 +1458,9 @@ drain_pending_buffers (MpegTSParse2 * parse, gboolean drain_all)
  {
    GstFlowReturn ret = GST_FLOW_OK;
    GstClockTime start_ts;
@@ -2132,7 +1987,7 @@ index 8e227baad..92958c2d8 100644
    GstBuffer *buffer;
    GList *l, *end = NULL;
  
-@@ -792,7 +1493,8 @@ drain_pending_buffers (MpegTSParse2 * parse, gboolean drain_all)
+@@ -792,7 +1506,8 @@ drain_pending_buffers (MpegTSParse2 * parse, gboolean drain_all)
  
    /* Case 2 */
    if (!GST_CLOCK_TIME_IS_VALID (parse->previous_pcr)) {
@@ -2142,7 +1997,7 @@ index 8e227baad..92958c2d8 100644
  
      /* Calculate the start_ts that ends at the end timestamp */
      start_ts = GST_CLOCK_TIME_NONE;
-@@ -802,48 +1504,58 @@ drain_pending_buffers (MpegTSParse2 * parse, gboolean drain_all)
+@@ -802,48 +1517,58 @@ drain_pending_buffers (MpegTSParse2 * parse, gboolean drain_all)
          start_ts -= pcr_diff;
      }
    } else if (drain_all) {       /* Case 3 */
@@ -2214,7 +2069,7 @@ index 8e227baad..92958c2d8 100644
  
      /* Free this list node and move to the next */
      p = g_list_previous (l);
-@@ -866,7 +1578,7 @@ mpegts_parse_input_done (MpegTSBase * base, GstBuffer * buffer)
+@@ -866,7 +1591,7 @@ mpegts_parse_input_done (MpegTSBase * base, GstBuffer * buffer)
    GST_LOG_OBJECT (parse, "Received buffer %" GST_PTR_FORMAT, buffer);
  
    if (parse->current_pcr != GST_CLOCK_TIME_NONE) {
@@ -3616,3 +3471,167 @@ index df25e7a59..5bae28095 100644
      g_free (val);
  
      GST_LOG_OBJECT (enc, "codec input caps %" GST_PTR_FORMAT, supported_incaps);
+diff --git a/gst-libs/gst/mpegts/gst-scte-section.c b/gst-libs/gst/mpegts/gst-scte-section.c
+new file mode 100644
+index 000000000..fcdafbc48
+--- /dev/null
++++ b/gst-libs/gst/mpegts/gst-scte-section.c
+@@ -0,0 +1,158 @@
++/*
++  * Copyright (C) 2019 Lajos Okos
++  *
++  * Authors:
++  *   Lajos Okos <lajos.okos@gmail.com>
++  *
++  * This library is free software; you can redistribute it and/or
++  * modify it under the terms of the GNU Library General Public
++  * License as published by the Free Software Foundation; either
++  * version 2 of the License, or (at your option) any later version.
++  *
++  * This library is distributed in the hope that it will be useful,
++  * but WITHOUT ANY WARRANTY; without even the implied warranty of
++  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
++  * Library General Public License for more details.
++  *
++  * You should have received a copy of the GNU Library General Public
++  * License along with this library; if not, write to the
++  * Free Software Foundation, Inc., 51 Franklin St, Fifth Floor,
++  * Boston, MA 02110-1301, USA.
++*/
++
++
++#ifdef HAVE_CONFIG_H
++#include "config.h"
++#endif
++
++#include <string.h>
++#include <stdlib.h>
++ 
++#include "mpegts.h"
++#include "gstmpegts-private.h"
++
++static void
++_gst_mpegts_scte_splice_command_free (GstMpegtsScteSpliceInsert *spinsert)
++{
++   //g_ptr_array_unref (spinfo->???);
++   //g_ptr_array_unref (spinfo->descriptors);
++   g_slice_free (GstMpegtsScteSpliceInsert, spinsert);
++}
++
++static gpointer
++_parse_scte_splice_info (GstMpegtsSection * section)
++{
++   GstMpegtsScteSpliceInfo *spinfo = NULL;
++   guint8 *data, *end;
++    
++   spinfo = g_slice_new0 (GstMpegtsScteSpliceInfo);
++ 
++   data = section->data;
++   end = data + section->section_length;
++   spinfo->table_id=*data++;
++   spinfo->section_syntax_indicator=*data>>7;
++   spinfo->private_indicator=(*data>>6)&0x01;
++   spinfo->section_length=(*data&0x0f*256) + *(data+1);
++   data+=2;
++   spinfo->protocol_version=*data++;
++   spinfo->encrypted_packet=*data>>7;
++   spinfo->encryption_algorith=(*data>>1)&0x3f;
++   spinfo->pts_adjustment=(guint64)(*data&0x01)<<32|*(data+1)<<24|*(data+2)<<16|*(data+3)<<8|*(data+4);
++   data+=5;
++   spinfo->cw_index=*data++;
++   spinfo->tier=*data<<4|(*(data+1)&0xf0)>>4;
++   spinfo->splice_command_length=(*(data+1)&0x0f)<<4|*(data+2);
++   data+=3;
++   spinfo->splice_command_type=*data++;
++   switch (spinfo->splice_command_type) {
++      case 0x05: {  //Splice Insert
++        GstMpegtsScteSpliceInsert *spinsert = &spinfo->splice_insert;
++        spinsert->splice_event_id=*data<<24|*(data+1)<<16|*(data+2)<<8|*(data+3);
++        data+=4;
++        spinsert->splice_event_cancel_indicator=*data++>>7;
++        spinsert->out_of_network_indicator=*data>>7;
++        spinsert->program_splice_flag=(*data>>6)&0x01;
++        spinsert->duration_flag=(*data>>5)&0x01;
++        spinsert->splice_immediate_flag=(*data++>>4)&0x01;
++        spinsert->time_specified_flag=*data>>7;
++        spinsert->pts_time=(((guint64)((*data)&0x01)<<32)|(*(data+1)<<24)|(*(data+2)<<16)|(*(data+3)<<8)|*(data+4)) & 0x1ffffffff;
++        data+=5;
++        spinsert->unique_program_id=*data<<8|*(data+1);
++        data+=2;
++        spinsert->avail_num=*data++;
++        spinsert->avails_expected=*data++;
++     }
++      break;
++      case 0x00:   //Splice Null
++      default: {}    //Unkown command
++        //spinfo->splice_command=NULL;
++   }
++
++   return (gpointer) spinfo;
++}
++
++static void
++_gst_mpegts_scte_splice_info_free (GstMpegtsScteSpliceInfo * spinfo)
++ {
++   //g_ptr_array_unref (spinfo->???);
++   //g_ptr_array_unref (spinfo->descriptors);
++   g_slice_free (GstMpegtsScteSpliceInfo, spinfo);
++}
++
++const GstMpegtsScteSpliceInfo *
++gst_mpegts_section_get_scte_splice_info (GstMpegtsSection * section)
++ {
++   g_return_val_if_fail (section->section_type == GST_MPEGTS_SECTION_SCTE_SPLICING,
++       NULL);
++   g_return_val_if_fail (section->cached_parsed || section->data, NULL);
++ 
++   if (!section->cached_parsed)
++     section->cached_parsed =
++         __common_section_checks (section, 3, _parse_scte_splice_info,
++         (GDestroyNotify) _gst_mpegts_scte_splice_info_free);
++ 
++   return (const GstMpegtsScteSpliceInfo *) section->cached_parsed;
++}
++
++/* 
++GstStructure should have the below fields:
++    splice-event-id (uint) : Must be present. Repeting IDs are ignored by downstream elements!!!
++    out-of-network-indicator (boolean) : 1 means exit from the network feed, 0 means return
++    pts-time (uint64) : PTS when splicing should happen
++    program-number (uint) : program number the event belons to. Used in mpegtsbase.c
++*/
++
++const GstMpegtsScteSpliceInfo*
++gst_mpegts_set_scte_splice_info(GstStructure *s)
++{
++    GstMpegtsScteSpliceInfo *spinfo = NULL;
++    GstMpegtsScteSpliceInsert *spinsert = NULL;
++
++    spinfo = g_slice_new0(GstMpegtsScteSpliceInfo);
++    spinsert = &spinfo->splice_insert;
++
++    spinfo->table_id = 0xfc; // Defined by the standard
++    spinfo->section_syntax_indicator = 0; // Defined by the standard
++    spinfo->private_indicator = 0; // Defined by the standard
++    spinfo->section_length = 0; // FIXME: Should be better calculated!!!
++    spinfo->protocol_version = 0; // Defined by the standard
++    spinfo->encrypted_packet = 0; // Defined by the standard
++    spinfo->encryption_algorith = 0; // Defined by the standard
++    spinfo->pts_adjustment = 0;
++    spinfo->cw_index = 0;
++    spinfo->tier = 0xfff;
++    spinfo->splice_command_length = 0; // FIXME: Should be better calculated!!!
++    spinfo->splice_command_type = 0x05;
++    gst_structure_get_uint(s, "splice-event-id", &spinsert->splice_event_id);
++    spinsert->splice_event_cancel_indicator = 0; // Not implemented yet. FIXME: Should be implemented sooner or later.
++    gst_structure_get_boolean(s,"out-of-network-indicator",&spinsert->out_of_network_indicator);
++    spinsert->program_splice_flag = 1;  // Program splice mode
++    spinsert->duration_flag = 0;  // No break duration ios indicated in the event
++    spinsert->splice_immediate_flag = 0;  // Splice time is present
++    spinsert->time_specified_flag = 1;  // PTS present
++    gst_structure_get_uint64(s,"pts-time",&spinsert->pts_time);
++    spinsert->unique_program_id = 0;
++    spinsert->avail_num = 0;
++    spinsert->avails_expected = 0;
++    return (const GstMpegtsScteSpliceInfo*)spinfo;
++}
