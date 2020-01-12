@@ -1,9 +1,23 @@
 #include <stdio.h>
 #include <gst/gst.h>
 #include "playlist.h"
+#include <unistd.h>  //Needed by getpid()
+#include <glib-unix.h>
+
 
 GST_DEBUG_CATEGORY_STATIC(rtp2hls);
 #define GST_CAT_DEFAULT rtp2hls
+
+/* Comes from gstreamer/gst/gstinfo.c
+ * Needed by the custom logging function. */
+#if defined (GLIB_SIZEOF_VOID_P) && GLIB_SIZEOF_VOID_P == 8
+#define PTR_FMT "%14p"
+#else
+#define PTR_FMT "%10p"
+#endif
+#define PID_FMT "%5d"
+#define CAT_FMT "%20s %s:%d:%s:%s"
+
 
 #define MPEGTIME_TO_GSTTIME(t) (((t) * (guint64)100000) / 9)
 
@@ -29,12 +43,14 @@ typedef struct _CustomData
 /* Variables passed through the command line */
 
 static gchar *source="";
-static gchar *base_dir="/var/www/htdocs/streams/";
+static gchar *base_dir="/ddrive/streams/";
 static gchar *channel="";
 static guint program_number;
 static gchar *url_base="";
 static guint playlist_size = 8;
 static gchar *segment_name="segment_%05d";
+static uint preroll_start=200; //in frames
+static uint preroll_end=200; //in frames
 
 static GOptionEntry entries[]=
 {
@@ -45,12 +61,82 @@ static GOptionEntry entries[]=
     {"url_base",'u',0,G_OPTION_ARG_STRING,&url_base,"URL to use in the playlist file. Channel will be appended.",NULL},
     {"playlist_size",'l',0,G_OPTION_ARG_INT,&playlist_size,"Size of the playlist.",NULL},
     {"segment_name",'n',0,G_OPTION_ARG_STRING,&segment_name,"Segment filenames.",NULL},
-    {NULL}
+    {"preroll_start",'t',0,G_OPTION_ARG_INT,&preroll_start,"Preroll at start.",NULL},
+    {"preroll_end",'e',0,G_OPTION_ARG_INT,&preroll_end,"Preroll at end.",NULL},
+   {NULL}
 };
 
-/* Forward definition for the message and keyboard processing functions */
+/* Forward definition for streamer messages */
 static gboolean handle_message(GstBus * bus, GstMessage * msg,
     CustomData * data);
+
+void gst_debug_log_custom (GstDebugCategory*,GstDebugLevel,const gchar*,const gchar*,
+        gint,GObject*,GstDebugMessage*,gpointer)  G_GNUC_NO_INSTRUMENT;
+
+gboolean
+signal_handler (gpointer user_data)
+{
+  GMainLoop * loop = (GMainLoop *)user_data;
+
+  GST_ERROR ("Interrupt or Terminate received, stopping main loop...\n");
+  g_main_loop_quit (loop);
+
+  return TRUE;
+}
+
+
+/*Just a copy of gst_debug_log_default, only elapsed has been changed. */
+void
+gst_debug_log_custom (GstDebugCategory * category,
+                       GstDebugLevel level,
+                       const gchar * file,
+                       const gchar * function,
+                       gint line,
+                       GObject * object,
+                       GstDebugMessage * message,
+                       gpointer user_data)
+{
+  gint pid;
+  gchar *obj = NULL;
+  const gchar *message_str;
+  FILE *log_file = user_data ? user_data : stderr;
+  GDateTime *now=g_date_time_new_now_local();
+  gchar* now_string=g_date_time_format(now,"%Y-%m-%d %H:%M:%S");
+  message_str = gst_debug_message_get (message);
+  pid = getpid ();
+
+  if (object) {
+    /* nicely printed object */
+    if (object == NULL) {
+        obj= g_strdup ("(NULL)");
+    }
+    else if(GST_IS_OBJECT (object) && GST_OBJECT_NAME (object)) {
+        obj= g_strdup_printf ("<%s>", GST_OBJECT_NAME (object));
+    }
+    else if (G_IS_OBJECT (object)) {
+      obj= g_strdup_printf ("<%s@%p>", G_OBJECT_TYPE_NAME (object), object);
+    }
+    else {
+        obj=g_strdup("(Not recognized)");
+    }
+  } else {
+    obj = (gchar *) "";
+  }
+
+    /* no color, all platforms */
+#define PRINT_FMT " "PID_FMT" "PTR_FMT" %s "CAT_FMT" %s\n"
+  fprintf (log_file, "%s.%06u" PRINT_FMT, now_string,g_date_time_get_microsecond(now),
+        pid, g_thread_self (), gst_debug_level_get_name (level),
+        gst_debug_category_get_name (category), file, line, function, obj,
+        message_str);
+  fflush (log_file);
+#undef PRINT_FMT
+  g_free(now_string);
+  g_date_time_unref(now);
+
+  if (object != NULL)
+    g_free (obj);
+}
 
 GstPadProbeReturn
 event_probe(GstPad *pad, GstPadProbeInfo *info, gpointer user_data) {
@@ -73,7 +159,7 @@ event_probe(GstPad *pad, GstPadProbeInfo *info, gpointer user_data) {
                     GstStructure *s = gst_structure_new("splice-insert",
                         "splice-event-id", G_TYPE_UINT, 100+event_counter++,
                         "out-of-network-indicator", G_TYPE_BOOLEAN, gpi == 0x40 ? 1 : 0,
-                        "pts-time", G_TYPE_UINT64, pts + 8 * 90000,
+                        "pts-time", G_TYPE_UINT64, pts + preroll_start * 3600,
                         "program-number", G_TYPE_UINT, data->program_number, NULL);
                     g_object_set(data->tsparse, "scte35-insert", s, NULL);
                 }
@@ -104,8 +190,17 @@ main(int argc, char *argv[])
 
     /* Initialize GStreamer */
     gst_init(&argc, &argv);
+    gst_debug_add_log_function(gst_debug_log_custom,NULL,NULL);
+    gst_debug_remove_log_function(NULL);
     GST_DEBUG_CATEGORY_INIT(rtp2hls, "rtp2hls", 0, "Let's start segmenting....");
 
+    /* check if destination directory exists, create if not */
+    if(!g_file_test(g_build_path("/",base_dir,channel,NULL),G_FILE_TEST_IS_DIR)) {
+        if(g_mkdir_with_parents(g_build_path("/",base_dir,channel,NULL),0777)<0) {
+            GST_ERROR("Destination directory %s couldn't be created.",g_build_path("/",base_dir,channel,NULL));
+            exit(-1);
+        }
+    }
     /* Create the elements & build the pipeline*/
     data.pipeline = gst_pipeline_new("rtp2hls");
     data.tsparse = gst_element_factory_make("tsparse", "tsparse");
@@ -171,6 +266,9 @@ main(int argc, char *argv[])
     gst_element_set_state(data.pipeline, GST_STATE_PLAYING);
     /* Create a GLib Main Loop and set it to run */
     data.main_loop = g_main_loop_new(NULL, FALSE);
+    g_unix_signal_add(SIGINT,signal_handler,data.main_loop);
+    g_unix_signal_add(SIGTERM,signal_handler,data.main_loop);
+   
     g_main_loop_run(data.main_loop);
 
     /* Free resources */
@@ -261,6 +359,9 @@ handle_message(GstBus * bus, GstMessage * msg, CustomData * data)
                 data->discontinuity = FALSE;
                 if(data->cue_out>0) {
                     data->cue_out++;
+                }
+                if(data->cue_out==-1) {
+                    data->cue_out=0;
                 }
             }
         } else {

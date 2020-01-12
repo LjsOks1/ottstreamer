@@ -6,7 +6,7 @@ struct _Playlist_Item {
     gchar *link;
     guint duration;
     gboolean discontinuity;
-    guint cue_out;
+    gint cue_out;
     GDateTime *timestamp;
 };
 typedef struct _Playlist_Item Playlist_Item;
