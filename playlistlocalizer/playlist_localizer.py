@@ -50,6 +50,9 @@ class M3U8Watcher:
         self.local_playlist=None
         self.local_window=False
         self.playlist_duration=0
+        self.playlist_changed=False
+        if os.path.isfile(self.__dst_path):
+            os.remove(self.__dst_path)
     def run(self):
         self.start()
         try:
@@ -73,8 +76,11 @@ class M3U8Watcher:
         if self.__src_path == event.dest_path:
             r_playlist=m3u8.load(event.dest_path)
             if self.regional_playlist is not None:
+                logger.debug("There are %i segments in the playlist",len(r_playlist.segments))
+                self.playlist_changed=False
                 for s in r_playlist.segments:
                     if s.uri not in [ r.uri for r in self.regional_playlist.segments]:
+                        self.playlist_changed=True
                         logger.debug("New segment detected:\n{}".format(s))
                         playlist_duration=((r_playlist.segments[-1].program_date_time-r_playlist.segments[0].program_date_time) +
                                             datetime.timedelta(seconds=r_playlist.segments[0].duration))
@@ -119,11 +125,14 @@ class M3U8Watcher:
                             #Default case, add segment to the local playlist
                             self.local_playlist.add_segment(s)
                             logger.debug("Detected segment appended to playlist")
-                        while s.program_date_time-self.local_playlist.segments[0].program_date_time > playlist_duration+datetime.timedelta(seconds=3):
+                        while (len(self.local_playlist.segments)>0 and
+                                s.program_date_time-self.local_playlist.segments[0].program_date_time > playlist_duration+datetime.timedelta(seconds=3)):
                             logger.debug("Segment removed from playlist:\n{}".format(
                                 self.local_playlist.segments.pop(0)))
                             self.local_playlist.media_sequence+=1
                             logger.debug("New sequence number:{}\n".format(self.local_playlist.media_sequence))                            
+                if self.playlist_changed==False:
+                    logger.error("Playlist changed, although no new segment has been detected.")
             else:
                 logger.debug("Initial playlist recorded.\n")
                 self.regional_playlist=r_playlist
@@ -131,6 +140,9 @@ class M3U8Watcher:
                 self.local_playlist.media_sequence=1
             self.regional_playlist=r_playlist
             self.local_playlist.dump(dst_path)
+        else:
+            logger.debug("Playlist not processed  as destination filename(%s) doesn't match monitored filename(%s).",
+                event.dest_path,self.__src_path)
 
 
 

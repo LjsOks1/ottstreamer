@@ -1,0 +1,10 @@
+.git
+.cache
+logs
+logs/*
+*.ipynb
+localizer*
+*.md
+create_playlist.py
+Dockerfile
+
