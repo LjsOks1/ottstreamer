@@ -11,6 +11,7 @@ from logging import FileHandler
 import multiviewer
 from datetime import date,datetime,timedelta
 import signal
+import threading
 
 
 formatter=logging.Formatter('%(asctime)s %(levelname)s: %(message)s [in %(pathname)s:%(lineno)d]')
@@ -33,6 +34,21 @@ class Recorder:
         self.broadcastday=(date.today()-self.daystart).strftime("%Y-%m-%d")
         self.exit=False
 
+    def on_debug(self,category,level,dfile,dfctn,dline,source,message,user_data):
+        if source: 
+            logger.debug('{} {} {} {} {}<{}>: {} {}:{}:{}  '.format(datetime.now(),
+                os.getpid(),
+                threading.current_thread().ident,
+                Gst.DebugLevel.get_name(level), 
+                category.name, 
+                source.name if hasattr(source,"name") else "???", 
+                dfile,dfctn,dline, message.get())) 
+        else: 
+           logger.debug('{} {} {} {} {}<{}>: {} {}:{}:{}  '.format(datetime.now(),
+               Gst.DebugLevel.get_name(level), 
+               os.getpid(),
+               threading.current_thread().ident,
+               category.name, "???", dfile,dfctn,dline, message.get())) 
     def stop_pipeline(self,signum,frame):
         Gst.debug_bin_to_dot_file(self.pipeline, Gst.DebugGraphDetails.ALL, "dump")
         self.exit=True
@@ -48,23 +64,6 @@ class Recorder:
         elif t == Gst.MessageType.ERROR:
             err, debug = message.parse_error()
             logger.error("Error: %s: %s\n" % (err, debug))
-            #self.loop.quit()
-        elif t== Gst.MessageType.STREAM_COLLECTION:
-            stream_collection=message.parse_stream_collection()
-            src=message.src
-            logger.info("StreamCollection message received from {} with size {}".
-                    format(src.name,stream_collection.get_size()))
-            streams=[]
-            for i in range(0,stream_collection.get_size()):
-                stream=stream_collection.get_stream(i)
-                logger.info("{} {}".format(stream.get_stream_id(),stream.get_stream_type()))
-                streams.append(stream.get_stream_id())
-                if stream.get_stream_type()==Gst.StreamType.AUDIO:
-                    break
-            event=Gst.Event.new_select_streams(streams)
-            #result=self.pipeline.send_event(event)
-            #logger.info("Select stream event sent with result: {}".format(result))
-    
         return True
 
     def on_element_message(self,element,message):
@@ -83,12 +82,16 @@ class Recorder:
             if self.broadcastday != current_day:
                 self.broadcastday=current_day
                 self.loop.quit()
+        if structure.get_name()=="GstUDPSrcTimeout":
+            logger.error("ERROR : No data arrived to {} for a second!!!".format(message.src.name))
 
     def run_recorder(self):
         try:
             signal.signal(signal.SIGINT,self.stop_pipeline)
             signal.signal(signal.SIGTERM,self.stop_pipeline)
             Gst.init(None)
+            Gst.debug_add_log_function(self.on_debug,None)
+            Gst.debug_remove_log_function(None)
             self.loop=GLib.MainLoop()
             while not self.exit:
                 segment_path=os.path.join(self.base_path,self.broadcastday,"segment_%05d.ts")
@@ -113,7 +116,6 @@ class Recorder:
                 bus.add_signal_watch()
                 bus.connect("message",self.bus_callback)
                 bus.connect("message::element",self.on_element_message)
-                #bus.connect("message::stream-collection",self.on_stream_connetion)
                 self.pipeline.set_state(Gst.State.PLAYING)
                 self.loop.run()
                 self.pipeline.set_state(Gst.State.NULL)
