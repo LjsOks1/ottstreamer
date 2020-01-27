@@ -1,0 +1,302 @@
+version: "3"
+services:
+    ais_httpd:
+        container_name: ais_httpd
+        environment:
+            - AIS_DOCROOT=/ddrive
+        image: ljsoks/ais:httpd
+        volumes: 
+            - /ddrive:/ddrive
+        ports:
+            -  80:80
+    ais_redis:
+        container_name: ais_redis
+        image: redis:5.0.7
+        network_mode: host
+        ports:
+           - 6379:6379
+# Nicktoons services...
+    nicktoons_pol_rtp2hls:
+        container_name: nicktoons_pol_rtp2hls
+        environment:
+            - GST_DEBUG=3,tsparse:4,rtp2hls:5
+        image: ljsoks/ais:rtp2hls 
+        command: 'rtp2hls -s udp://239.211.8.127:1234 -b /ddrive/streams -c nicktoons_pol -p 14 -u http://129.228.120.144/streams -l 8 -n segment_%05d.ts'
+        volumes:
+            - /ddrive:/ddrive
+        network_mode: host
+        restart: unless-stopped
+    nicktoons_rom_localizer:
+        container_name: nicktoons_rom_localizer
+        image: ljsoks/ais:localizer
+        command: ["/playlist_localizer2.py","/ddrive/streams/nicktoons_pol/playlist.m3u8","/ddrive/streams/nicktoons_rom/nicktoons_rom.m3u8","nicktoonsro","20"]
+        volumes:
+            - /ddrive:/ddrive
+        network_mode: host
+        restart: unless-stopped
+        depends_on:
+            - ais_redis
+    nicktoons_rom_hls2rtp:
+        container_name: nicktoons_rom_hls2rtp
+        environment:
+            - GST_DEBUG=3,tsparse:4,hls2rtp:5
+        image: ljsoks/ais:hls2rtp 
+        command: 'hls2rtp -s http://129.228.120.144/streams/nicktoons_rom/nicktoons_rom.m3u8 -d 239.211.8.7:1234 -p program_14'
+        volumes:
+            - /ddrive:/ddrive
+        network_mode: host
+        restart: unless-stopped
+
+    nicktoons_bul_localizer:
+        container_name: nicktoons_bul_localizer
+        image: ljsoks/ais:localizer
+        command: ["/playlist_localizer2.py","/ddrive/streams/nicktoons_pol/playlist.m3u8","/ddrive/streams/nicktoons_bul/nicktoons_bul.m3u8","Nicktoons_Bulgaria","20"]
+        volumes:
+            - /ddrive:/ddrive
+        network_mode: host
+        restart: unless-stopped
+        depends_on:
+            - ais_redis
+    nicktoons_bul_hls2rtp:
+        container_name: nicktoons_bul_hls2rtp
+        environment:
+            - GST_DEBUG=3,tsparse:4,hls2rtp:5
+        image: ljsoks/ais:hls2rtp 
+        command: 'hls2rtp -s http://129.228.120.144/streams/nicktoons_bul/nicktoons_bul.m3u8 -d 239.211.8.6:1234 -p program_14'
+        volumes:
+            - /ddrive:/ddrive
+        network_mode: host
+        restart: unless-stopped
+
+    nicktoons_hun_localizer:
+        container_name: nicktoons_hun_localizer
+        image: ljsoks/ais:localizer
+        command: ["/playlist_localizer2.py","/ddrive/streams/nicktoons_pol/playlist.m3u8","/ddrive/streams/nicktoons_hun/nicktoons_hun.m3u8","Nicktoons_Hungary","20"]
+        volumes:
+            - /ddrive:/ddrive
+        network_mode: host
+        restart: unless-stopped
+        depends_on:
+            - ais_redis
+    nicktoons_hun_hls2rtp:
+        container_name: nicktoons_hun_hls2rtp
+        environment:
+            - GST_DEBUG=3,tsparse:4,hls2rtp:5
+        image: ljsoks/ais:hls2rtp 
+        command: 'hls2rtp -s http://129.228.120.144/streams/nicktoons_hun/nicktoons_hun.m3u8 -d 239.211.8.5:1234 -p program_14'
+        volumes:
+            - /ddrive:/ddrive
+        network_mode: host
+        restart: unless-stopped
+
+    nicktoons_cze_localizer:
+        container_name: nicktoons_cze_localizer
+        image: ljsoks/ais:localizer
+        command: ["/playlist_localizer2.py","/ddrive/streams/nicktoons_pol/playlist.m3u8","/ddrive/streams/nicktoons_cze/nicktoons_cze.m3u8","nicktoonscz","20"]
+        volumes:
+            - /ddrive:/ddrive
+        network_mode: host
+        restart: unless-stopped
+        depends_on:
+            - ais_redis
+    nicktoons_cze_hls2rtp:
+        container_name: nicktoons_cze_hls2rtp
+        environment:
+            - GST_DEBUG=3,tsparse:4,hls2rtp:5
+        image: ljsoks/ais:hls2rtp 
+        command: 'hls2rtp -s http://129.228.120.144/streams/nicktoons_cze/nicktoons_cze.m3u8 -d 239.211.8.8:1234 -p program_14'
+        volumes:
+            - /ddrive:/ddrive
+        network_mode: host
+        restart: unless-stopped
+# NickJR services....
+    nickjr_pol_rtp2hls:
+        container_name: nickjr_pol_rtp2hls
+        environment:
+            - GST_DEBUG=3,tsparse:4,rtp2hls:5
+        image: ljsoks/ais:rtp2hls 
+        command: 'rtp2hls -s udp://239.211.8.117:1234 -b /ddrive/streams -c nickjr_pol -p 3 -u http://129.228.120.144/streams -l 8 -n segment_%05d.ts'
+        volumes:
+            - /ddrive:/ddrive
+        network_mode: host
+        restart: unless-stopped
+    nickjr_rom_localizer:
+        container_name: nickjr_rom_localizer
+        image: ljsoks/ais:localizer
+        command: ["/playlist_localizer2.py","/ddrive/streams/nickjr_pol/playlist.m3u8","/ddrive/streams/nickjr_rom/nickjr_rom.m3u8","nickjrro","20"]
+        volumes:
+            - /ddrive:/ddrive
+        network_mode: host
+        restart: unless-stopped
+        depends_on:
+            - ais_redis
+    nickjr_rom_hls2rtp:
+        container_name: nickjr_rom_hls2rtp
+        environment:
+            - GST_DEBUG=3,tsparse:4,hls2rtp:5
+        image: ljsoks/ais:hls2rtp 
+        command: 'hls2rtp -s http://129.228.120.144/streams/nickjr_rom/nickjr_rom.m3u8 -d 239.211.8.9:1234 -p program_3'
+        volumes:
+            - /ddrive:/ddrive
+        network_mode: host
+        restart: unless-stopped
+
+    nickjr_bul_localizer:
+        container_name: nickjr_bul_localizer
+        image: ljsoks/ais:localizer
+        command: ["/playlist_localizer2.py","/ddrive/streams/nickjr_pol/playlist.m3u8","/ddrive/streams/nickjr_bul/nickjr_bul.m3u8","nickjrbul","20"]
+        volumes:
+            - /ddrive:/ddrive
+        network_mode: host
+        restart: unless-stopped
+        depends_on:
+            - ais_redis
+    nickjr_bul_hls2rtp:
+        container_name: nickjr_bul_hls2rtp
+        environment:
+            - GST_DEBUG=3,tsparse:4,hls2rtp:5
+        image: ljsoks/ais:hls2rtp 
+        command: 'hls2rtp -s http://129.228.120.144/streams/nickjr_bul/nickjr_bul.m3u8 -d 239.211.8.10:1234 -p program_3'
+        volumes:
+            - /ddrive:/ddrive
+        network_mode: host
+        restart: unless-stopped
+
+    nickjr_hun_localizer:
+        container_name: nickjr_hun_localizer
+        image: ljsoks/ais:localizer
+        command: ["/playlist_localizer2.py","/ddrive/streams/nickjr_pol/playlist.m3u8","/ddrive/streams/nickjr_hun/nickjr_hun.m3u8","nickjrhu","20"]
+        volumes:
+            - /ddrive:/ddrive
+        network_mode: host
+        restart: unless-stopped
+        depends_on:
+            - ais_redis
+    nickjr_hun_hls2rtp:
+        container_name: nickjr_hun_hls2rtp
+        environment:
+            - GST_DEBUG=3,tsparse:4,hls2rtp:5
+        image: ljsoks/ais:hls2rtp 
+        command: 'hls2rtp -s http://129.228.120.144/streams/nickjr_hun/nickjr_hun.m3u8 -d 239.211.8.11:1234 -p program_3'
+        volumes:
+            - /ddrive:/ddrive
+        network_mode: host
+        restart: unless-stopped
+
+    nickjr_cze_localizer:
+        container_name: nickjr_cze_localizer
+        image: ljsoks/ais:localizer
+        command: ["/playlist_localizer2.py","/ddrive/streams/nickjr_pol/playlist.m3u8","/ddrive/streams/nickjr_cze/nickjr_cze.m3u8","nickjrcz","20"]
+        volumes:
+            - /ddrive:/ddrive
+        network_mode: host
+        restart: unless-stopped
+        depends_on:
+            - ais_redis
+    nickjr_cze_hls2rtp:
+        container_name: nickjr_cze_hls2rtp
+        environment:
+            - GST_DEBUG=3,tsparse:4,hls2rtp:5
+        image: ljsoks/ais:hls2rtp 
+        command: 'hls2rtp -s http://129.228.120.144/streams/nickjr_cze/nickjr_cze.m3u8 -d 239.211.8.12:1234 -p program_3'
+        volumes:
+            - /ddrive:/ddrive
+        network_mode: host
+        restart: unless-stopped
+
+# Nick services....
+    nick_com_rtp2hls:
+        container_name: nick_com_rtp2hls
+        environment:
+            - GST_DEBUG=3,tsparse:4,rtp2hls:5
+        image: ljsoks/ais:rtp2hls 
+        command: 'rtp2hls -s udp://239.211.8.121:1234 -b /ddrive/streams -c nick_com -p 30633 -u http://129.228.120.144/streams -l 8 -n segment_%05d.ts'
+        volumes:
+            - /ddrive:/ddrive
+        network_mode: host
+        restart: unless-stopped
+    nick_rom_localizer:
+        container_name: nick_rom_localizer
+        image: ljsoks/ais:localizer
+        command: ["/playlist_localizer2.py","/ddrive/streams/nick_com/playlist.m3u8","/ddrive/streams/nick_rom/nick_rom.m3u8","nickelodeonro","20"]
+        volumes:
+            - /ddrive:/ddrive
+        network_mode: host
+        restart: unless-stopped
+        depends_on:
+            - ais_redis
+    nick_rom_hls2rtp:
+        container_name: nick_rom_hls2rtp
+        environment:
+            - GST_DEBUG=3,tsparse:4,hls2rtp:5
+        image: ljsoks/ais:hls2rtp 
+        command: 'hls2rtp -s http://129.228.120.144/streams/nick_rom/nick_rom.m3u8 -d 239.211.8.14:1234 -p program_30633'
+        volumes:
+            - /ddrive:/ddrive
+        network_mode: host
+        restart: unless-stopped
+
+    nick_bul_localizer:
+        container_name: nick_bul_localizer
+        image: ljsoks/ais:localizer
+        command: ["/playlist_localizer2.py","/ddrive/streams/nick_com/playlist.m3u8","/ddrive/streams/nick_bul/nick_bul.m3u8","nickelodeon_BUL","20"]
+        volumes:
+            - /ddrive:/ddrive
+        network_mode: host
+        restart: unless-stopped
+        depends_on:
+            - ais_redis
+    nick_bul_hls2rtp:
+        container_name: nick_bul_hls2rtp
+        environment:
+            - GST_DEBUG=3,tsparse:4,hls2rtp:5
+        image: ljsoks/ais:hls2rtp 
+        command: 'hls2rtp -s http://129.228.120.144/streams/nick_bul/nick_bul.m3u8 -d 239.211.8.15:1234 -p program_30633'
+        volumes:
+            - /ddrive:/ddrive
+        network_mode: host
+        restart: unless-stopped
+
+    nick_hun_localizer:
+        container_name: nick_hun_localizer
+        image: ljsoks/ais:localizer
+        command: ["/playlist_localizer2.py","/ddrive/streams/nick_com/playlist.m3u8","/ddrive/streams/nick_hun/nick_hun.m3u8","nickelodeon_HUN","20"]
+        volumes:
+            - /ddrive:/ddrive
+        network_mode: host
+        restart: unless-stopped
+        depends_on:
+            - ais_redis
+    nick_hun_hls2rtp:
+        container_name: nick_hun_hls2rtp
+        environment:
+            - GST_DEBUG=3,tsparse:4,hls2rtp:5
+        image: ljsoks/ais:hls2rtp 
+        command: 'hls2rtp -s http://129.228.120.144/streams/nick_hun/nick_hun.m3u8 -d 239.211.8.13:1234 -p program_30633'
+        volumes:
+            - /ddrive:/ddrive
+        network_mode: host
+        restart: unless-stopped
+
+    nick_cze_localizer:
+        container_name: nick_cze_localizer
+        image: ljsoks/ais:localizer
+        command: ["/playlist_localizer2.py","/ddrive/streams/nick_com/playlist.m3u8","/ddrive/streams/nick_cze/nick_cze.m3u8","nickelodeoncze","20"]
+        volumes:
+            - /ddrive:/ddrive
+        network_mode: host
+        restart: unless-stopped
+        depends_on:
+            - ais_redis
+    nick_cze_hls2rtp:
+        container_name: nick_cze_hls2rtp
+        environment:
+            - GST_DEBUG=3,tsparse:4,hls2rtp:5
+        image: ljsoks/ais:hls2rtp 
+        command: 'hls2rtp -s http://129.228.120.144/streams/nick_cze/nick_cze.m3u8 -d 239.211.8.16:1234 -p program_30633'
+        volumes:
+            - /ddrive:/ddrive
+        network_mode: host
+        restart: unless-stopped
+
+
