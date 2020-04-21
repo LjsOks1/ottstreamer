@@ -1,0 +1,52 @@
+{
+    "family": "ais_stream_nick_ec2",
+    "taskRoleArn": "",
+    "networkMode": "bridge",
+    "containerDefinitions": [
+        {
+            "name": "nick_com_rtp2hls",
+            "image": "ljsoks/ais:rtp2hls",
+            "memoryReservation": 128,
+            "portMappings": [
+                {
+                    "containerPort": 1234,
+                    "hostPort": 1234,
+                    "protocol": "tcp"
+                }
+            ],
+            "essential": true,
+            "environment": [
+                {"name": "GST_DEBUG","value": "3,tsparse:4,rtp2hls:5"},
+                {"name": "AIS_REDIS_SERVER", "value":"ais_redis.local"}
+            ],
+            "mountPoints": [
+                {
+                    "sourceVolume": "ais_ddrive",
+                    "containerPath": "/ddrive",
+                    "readOnly": false
+                }
+            ],
+            "entryPoint": [
+                "tail", "-f", "/dev/null"
+            ],
+            "logConfiguration": {
+                "logDriver": "awslogs",
+                "options": {
+                    "awslogs-group": "ais_stream_nick",
+                    "awslogs-region": "eu-west-2",
+                    "awslogs-stream-prefix": "rtp2hls"
+                }          
+            }
+        }
+    ],
+    "volumes": [
+        {
+            "name": "ais_ddrive",
+            "efsVolumeConfiguration": {
+                "fileSystemId": "fs-57b6d4a6",
+                "rootDirectory": "/"
+            }
+        }
+    ],
+    "executionRoleArn": "arn:aws:iam::862791113833:role/ecsTaskExecutionRole"
+}

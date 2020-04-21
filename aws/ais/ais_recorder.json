@@ -1,0 +1,79 @@
+{
+    "family": "ais_recorder",
+    "taskRoleArn": "",
+    "executionRoleArn": "",
+    "networkMode": "awsvpc",
+    "containerDefinitions": [
+        {
+            "name": "multiviewer",
+            "image": "ljsoks/ais:recorder",
+            "memoryReservation": 256,
+            "essential": true,
+            "environment": [
+                {"name": "GST_DEBUG","value": "3,tsparse:5"}
+            ],
+            "mountPoints": [
+                {
+                    "sourceVolume": "ais_ddrive",
+                    "containerPath": "/ddrive",
+                    "readOnly": false
+                }
+            ],
+            "command": [
+                "/legal_recorder.py", "/ddrive/legalrecording/multiview","http://129.228.120.31/legalrecording"
+            ],
+            "logConfiguration": {
+                "logDriver": "awslogs",
+                "options": {
+                    "awslogs-group": "ais_recorder",
+                    "awslogs-region": "eu-west-2",
+                    "awslogs-stream-prefix": "multiviewer"
+                }          
+            }
+        },
+        {
+            "name": "httpd-recorder",
+            "image": "ljsoks/ais:httpd-recorder",
+            "memoryReservation": 256,
+            "portMappings": [
+                {
+                    "containerPort": 80,
+                    "hostPort": 80,
+                    "protocol": "tcp"
+                }
+            ],
+            "essential": true,
+            "mountPoints": [
+                {
+                    "sourceVolume": "ais_ddrive",
+                    "containerPath": "/ddrive",
+                    "readOnly": false
+                }
+            ],
+            "logConfiguration": {
+                "logDriver": "awslogs",
+                "options": {
+                    "awslogs-group": "ais_recorder",
+                    "awslogs-region": "eu-west-2",
+                    "awslogs-stream-prefix": "http"
+                }          
+            }
+        }
+
+    ],
+    "volumes": [
+        {
+            "name": "ais_ddrive",
+            "efsVolumeConfiguration": {
+                "fileSystemId": "fs-57b6d4a6",
+                "rootDirectory": "/"
+            }
+        }
+    ],
+    "executionRoleArn": "arn:aws:iam::862791113833:role/ecsTaskExecutionRole",
+    "cpu": "256",
+    "memory": "512",
+    "requiresCompatibilities": [
+        "FARGATE"
+    ]
+}

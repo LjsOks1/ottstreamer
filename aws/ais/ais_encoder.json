@@ -1,0 +1,49 @@
+{
+    "family": "ais_encoder",
+    "taskRoleArn": "",
+    "networkMode": "awsvpc",
+    "containerDefinitions": [
+        {
+            "name": "ais_encoder",
+            "image": "ljsoks/ais:encoder",
+            "memoryReservation": 256,
+            "essential": true,
+            "environment": [
+                {"name": "AIS_REDIS_url","value": "redis://ais_redis.local:6379"}
+            ],
+            "mountPoints": [
+                {
+                    "sourceVolume": "ais_ddrive",
+                    "containerPath": "/ddrive",
+                    "readOnly": false
+                }
+            ],
+            "command": [
+                "rq", "worker", "--url", "redis://ais_redis.local", "encode-commercials"
+            ],
+            "logConfiguration": {
+                "logDriver": "awslogs",
+                "options": {
+                    "awslogs-group": "ais_encoder",
+                    "awslogs-region": "eu-west-2",
+                    "awslogs-stream-prefix": "encoder"
+                }          
+            }
+        }
+    ],
+    "volumes": [
+        {
+            "name": "ais_ddrive",
+            "efsVolumeConfiguration": {
+                "fileSystemId": "fs-57b6d4a6",
+                "rootDirectory": "/"
+            }
+        }
+    ],
+    "executionRoleArn": "arn:aws:iam::862791113833:role/ecsTaskExecutionRole",
+    "cpu": "256",
+    "memory": "512",
+    "requiresCompatibilities": [
+        "FARGATE"
+    ]
+}

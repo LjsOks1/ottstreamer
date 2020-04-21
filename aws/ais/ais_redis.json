@@ -1,0 +1,53 @@
+{
+    "family": "ais_redis",
+    "taskRoleArn": "",
+    "executionRoleArn": "",
+    "networkMode": "awsvpc",
+    "containerDefinitions": [
+        {
+            "name": "ais_redis",
+            "image": "redis:5.0.8",
+            "memoryReservation": 256,
+            "portMappings": [
+                {
+                    "containerPort": 6379,
+                    "hostPort": 6379,
+                    "protocol": "tcp"
+                }
+            ],
+            "essential": true,
+            "logConfiguration": {
+                "logDriver": "awslogs",
+                "options": {
+                    "awslogs-group": "ais_redis",
+                    "awslogs-region": "eu-west-2",
+                    "awslogs-stream-prefix": "ais_redis"
+                }          
+            },
+            "mountPoints": [
+                {
+                    "sourceVolume": "ais_ddrive",
+                    "containerPath": "/data",
+                    "readOnly": false
+                }
+            ]            
+        }
+    ],
+    "volumes": [
+        {
+            "name": "ais_ddrive",
+            "efsVolumeConfiguration": {
+                "fileSystemId": "fs-57b6d4a6",
+                "rootDirectory": "/"
+            }
+        }
+    ],
+
+    "executionRoleArn": "arn:aws:iam::862791113833:role/ecsTaskExecutionRole",
+    "cpu": "256",
+    "memory": "512",
+    "requiresCompatibilities": [
+        "FARGATE"
+    ]
+
+}

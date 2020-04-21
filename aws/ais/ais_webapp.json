@@ -1,0 +1,56 @@
+{
+    "family": "ais_webapp",
+    "taskRoleArn": "",
+    "executionRoleArn": "",
+    "networkMode": "awsvpc",
+    "containerDefinitions": [
+        {
+            "name": "ais_webapp",
+            "image": "ljsoks/ais:webapp",
+            "memoryReservation": 256,
+            "portMappings": [
+                {
+                    "containerPort": 80,
+                    "hostPort": 80,
+                    "protocol": "tcp"
+                }
+            ],
+            "essential": true,
+            "environment": [
+                {"name": "AIS_DOCROOT","value": "/ddrive"},
+                {"name": "AIS_REDIS_HOST","value": "ais_redis.local"},
+                {"name": "AIS_PUBLIC_ADDRESS","value": "129.228.120.144"}
+            ],
+            "mountPoints": [
+                {
+                    "sourceVolume": "ais_ddrive",
+                    "containerPath": "/ddrive",
+                    "readOnly": false
+                }
+            ],
+            "logConfiguration": {
+                "logDriver": "awslogs",
+                "options": {
+                    "awslogs-group": "ais_webapp",
+                    "awslogs-region": "eu-west-2",
+                    "awslogs-stream-prefix": "ais_webapp"
+                }          
+            }
+        }
+    ],
+    "volumes": [
+        {
+            "name": "ais_ddrive",
+            "efsVolumeConfiguration": {
+                "fileSystemId": "fs-57b6d4a6",
+                "rootDirectory": "/"
+            }
+        }
+    ],
+    "executionRoleArn": "arn:aws:iam::862791113833:role/ecsTaskExecutionRole",
+    "cpu": "256",
+    "memory": "512",
+    "requiresCompatibilities": [
+        "FARGATE"
+    ]
+}

@@ -1,0 +1,120 @@
+{
+    "family": "ais_stream_nick",
+    "taskRoleArn": "",
+    "networkMode": "awsvpc",
+    "containerDefinitions": [
+        {
+            "name": "nick_com_rtp2hls",
+            "image": "ljsoks/ais:rtp2hls",
+            "memoryReservation": 128,
+            "portMappings": [
+                {
+                    "containerPort": 1234,
+                    "hostPort": 1234,
+                    "protocol": "tcp"
+                }
+            ],
+            "essential": true,
+            "environment": [
+                {"name": "GST_DEBUG","value": "3,tsparse:4,rtp2hls:5"},
+                {"name": "AIS_REDIS_SERVER", "value":"ais_redis.local"}
+            ],
+            "mountPoints": [
+                {
+                    "sourceVolume": "ais_ddrive",
+                    "containerPath": "/ddrive",
+                    "readOnly": false
+                }
+            ],
+            "command": [
+                "rtp2hls", "-s", "udp://239.211.8.121:1234", "-b", "/ddrive/streams", "-c", "nick_com", "-p", "30633", "-u", "http://129.228.120.144/streams", "-l", "8", "-n", "segment_%05d.ts"
+            ],
+            "logConfiguration": {
+                "logDriver": "awslogs",
+                "options": {
+                    "awslogs-group": "ais_stream_nick",
+                    "awslogs-region": "eu-west-2",
+                    "awslogs-stream-prefix": "rtp2hls"
+                }          
+            }
+        },
+        {
+            "name": "nick_rom_localizer",
+            "image": "ljsoks/ais:localizer",
+            "memoryReservation": 128,
+            "essential": true,
+            "environment": [
+                {"name": "GST_DEBUG","value": "3,tsparse:4,rtp2hls:5"},
+                {"name": "AIS_REDIS_SERVER", "value":"ais_redis.local"}
+            ],
+            "mountPoints": [
+                {
+                    "sourceVolume": "ais_ddrive",
+                    "containerPath": "/ddrive",
+                    "readOnly": false
+                }
+            ],
+            "command": [
+                "/playlist_localizer2.py", "/ddrive/streams/nick_com/playlist.m3u8", "/ddrive/streams/nick_rom/nick_rom.m3u8", "nick_rom","20"
+            ],
+            "logConfiguration": {
+                "logDriver": "awslogs",
+                "options": {
+                    "awslogs-group": "ais_stream_nick",
+                    "awslogs-region": "eu-west-2",
+                    "awslogs-stream-prefix": "localizer_rom"
+                }          
+            }
+        },
+        {
+            "name": "nick_rom_hls2rtp",
+            "image": "ljsoks/ais:hls2rtp",
+            "memoryReservation": 128,
+            "portMappings": [
+                {
+                    "containerPort": 1235,
+                    "hostPort": 1235,
+                    "protocol": "tcp"
+                }
+            ],
+            "essential": true,
+            "environment": [
+                {"name": "GST_DEBUG","value": "3,tsparse:4,rtp2hls:5"},
+                {"name": "AIS_REDIS_SERVER", "value":"ais_redis.local"}
+            ],
+            "mountPoints": [
+                {
+                    "sourceVolume": "ais_ddrive",
+                    "containerPath": "/ddrive",
+                    "readOnly": false
+                }
+            ],
+            "command": [
+                "hls2rtp", "-s", "http://129.228.120.144/streams/nick_rom/nick_rom.m3u8", "-d", "239.211.8.14:1234", "-p", "program_30633"
+            ],
+            "logConfiguration": {
+                "logDriver": "awslogs",
+                "options": {
+                    "awslogs-group": "ais_stream_nick",
+                    "awslogs-region": "eu-west-2",
+                    "awslogs-stream-prefix": "hls2rtp_rom"
+                }          
+            }
+        }        
+    ],
+    "volumes": [
+        {
+            "name": "ais_ddrive",
+            "efsVolumeConfiguration": {
+                "fileSystemId": "fs-57b6d4a6",
+                "rootDirectory": "/"
+            }
+        }
+    ],
+    "executionRoleArn": "arn:aws:iam::862791113833:role/ecsTaskExecutionRole",
+    "cpu": "1024",
+    "memory": "2048",
+    "requiresCompatibilities": [
+        "FARGATE"
+    ]
+}
