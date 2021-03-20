@@ -13,7 +13,7 @@ ipython-genutils==0.2.0
 iso8601==0.1.12
 itsdangerous==1.1.0
 jedi==0.15.1
-Jinja2==2.10.1
+Jinja2==2.11.3
 jupyter-client==5.3.3
 jupyter-core==4.5.0
 m3u8==0.4.0
